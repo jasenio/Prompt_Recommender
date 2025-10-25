@@ -1,0 +1,265 @@
+/* base layout*/
+body {
+  margin: 0;
+  padding: 0;
+  background: #f7f8fa;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.main-container {
+  display: flex;
+  height: 90vh;
+  width: 90vw;
+  gap: 10px;
+  position: relative;
+}
+
+/* generic chatbot section */
+.chat-container {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+header {
+  background-color: #0078ff;
+  color: white;
+  padding: 1rem;
+  text-align: center;
+}
+
+.chat-box {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  background: #f9f9f9;
+  word-wrap: break-word;
+}
+
+.input-area {
+  display: flex;
+  padding: 15px;
+  border-top: 1px solid #ccc;
+  background: white;
+}
+
+textarea {
+  flex: 1;
+  resize: none;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 15px;
+  max-height: 250px;
+}
+
+button {
+  margin-left: 10px;
+  padding: 10px 20px;
+  background: #0078ff;
+  border: none;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+}
+
+button:hover {
+  background: #005fcc;
+}
+
+/* user messages */
+.message {
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
+.user-msg {
+  text-align: right;
+}
+
+.user-msg p {
+  display: inline-block;
+  background: #0078ff;
+  color: white;
+  padding: 10px 15px;
+  border-radius: 15px 15px 0 15px;
+  max-width: 80%;
+}
+
+.bot-msg p {
+  display: inline-block;
+  background: #eaeaea;
+  padding: 10px 15px;
+  border-radius: 15px 15px 15px 0;
+  max-width: 80%;
+  color: #222;
+}
+
+/* promptRS side component */
+.promptrs-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  overflow: hidden;
+  transition: transform 0.4s ease, opacity 0.3s ease;
+}
+
+/* slide anim */
+.promptrs-container.disabled {
+  transform: translateX(120%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.promptrs-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f1f1f1;
+  padding: 10px 15px;
+  border-bottom: 1px solid #ddd;
+}
+
+.promptrs-header h2 {
+  margin: 0;
+}
+
+/* toggle promptrs component */
+.promptrs-toggle-wrapper {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 999;
+}
+
+.toggle-btn {
+  background: #d9534f;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  transition: background 0.3s ease;
+}
+
+.toggle-btn:hover {
+  background: #c9302c;
+}
+
+/* recommended items list */
+.prompt-list {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+}
+
+.prompt-item {
+  background: #f8f8f8;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  transition: background 0.2s;
+}
+
+.prompt-item:hover {
+  background: #f0f8ff;
+}
+
+.prompt-item h3 {
+  font-size: 15px;
+  margin: 0 0 5px 0;
+  color: #0078ff;
+}
+
+.prompt-item p {
+  margin: 0;
+  color: #333;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+/* prompt item actions (USE+LIKE) */
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.use-btn {
+  background: #0078ff;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.3s ease;
+}
+
+.use-btn:hover {
+  background: #005fcc;
+}
+
+/* likes */
+.like-display {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.like-display:hover {
+  background: #fff0f0;
+  border-color: #ffb3b3;
+}
+
+.like-icon {
+  color: #ffc5c5;
+  font-size: 15px;
+}
+
+.like-count {
+  font-size: 14px;
+  color: #333;
+}
+
+.like-display.liked .like-icon {
+  color: #d92b2b;
+  transform: scale(1.5);
+}
+
+/* handle scrolling */
+.chat-box::-webkit-scrollbar,
+.prompt-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.chat-box::-webkit-scrollbar-thumb,
+.prompt-list::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 5px;
+}

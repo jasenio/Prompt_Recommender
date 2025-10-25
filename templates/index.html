@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ChatUI + Prompt RS</title>
+
+  <!-- main (only) stylesheet-->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="main-container">
+
+    <!-- generic chatbot interface -->
+    <div class="chat-container">
+      <header>
+        <h1>Chat with GPT</h1>
+      </header>
+
+      <!-- message area -->
+      <main id="chat-box" class="chat-box"></main>
+
+      <!-- input area -->
+      <footer class="input-area">
+        <textarea id="user-input" rows="1" placeholder="Type your message..." 
+          oninput="autoResize(this)" 
+          onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage();}">
+        </textarea>
+        <button onclick="sendMessage()">Send</button>
+      </footer>
+    </div>
+
+    <!-- promptRS side toggle -->
+    <div class="promptrs-toggle-wrapper">
+      <button id="toggle-btn" class="toggle-btn" onclick="togglePromptRS()">Disable</button>
+    </div>
+
+    <!-- promptRS main side bar -->
+    <div class="promptrs-container" id="promptrs">
+      <div class="promptrs-header">
+        <h2>Prompt RS</h2>
+         <div id="promptrs-status" class="promptrs-status" aria-live="polite" style="font-size:0.9rem;color:#666;margin-left:8px;">Idle</div>
+      </div>
+
+      <!-- store recommended items -->
+      <div id="prompt-list" class="prompt-list">
+      </div>
+    </div>
+
+  <!-- scripts -->
+  <script>
+
+    // track user sessions
+    function getSessionId() {
+      let sid = localStorage.getItem("session_id");
+      if (!sid) {
+        sid = crypto.randomUUID();
+        localStorage.setItem("session_id", sid);
+      }
+      return sid;
+    }
+    const SESSION_ID = getSessionId();
+
+    // log user feedback to the server
+    async function sendFeedback(action, meta) {
+      const payload = {
+        session_id: SESSION_ID,
+        timestamp: new Date().toISOString(),
+        action,      // use or like
+        meta         // specific prompt used
+      };
+
+      try {
+        await fetch("/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {
+        console.warn("Failed to log feedback:", err);
+      }
+    }
+
+    
+
+    // handle generic user prompts (input)
+    async function sendMessage() {
+      const input = document.getElementById("user-input");
+      const message = input.value.trim();
+      if (!message) return;
+
+      // display user message
+      appendMessage("You", message);
+      input.value = "";
+      input.style.height = "auto";
+
+      // display bot "thinking" while waiting
+      appendMessage("Bot", "<em>Thinking...</em>");
+      const responseEl = document.querySelector(".bot-msg:last-child p");
+
+      // fetch generic bot response + prompt recommendations in parallel
+      const recPromise = fetchRecommendations(message, 20);
+      const botPromise = fetch(`/get?msg=${encodeURIComponent(message)}`);
+
+      try {
+        const res = await botPromise;
+        const data = await res.text();
+        responseEl.innerHTML = data.replace(/\n/g, "<br>");
+      } catch (err) {
+        responseEl.innerHTML = "<span style='color:red;'>Error fetching response.</span>";
+      }
+      
+      // log [submit] action
+      sendFeedback("submit", {  });
+    }
+
+    // append message to chat box
+    function appendMessage(sender, text) {
+      const chatBox = document.getElementById("chat-box");
+      const msgDiv = document.createElement("div");
+      msgDiv.classList.add("message", sender === "You" ? "user-msg" : "bot-msg");
+      msgDiv.innerHTML = `<p><strong>${sender}:</strong><br>${text}</p>`;
+      chatBox.appendChild(msgDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function autoResize(textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = Math.min(textarea.scrollHeight, 250) + "px";
+    }
+
+    // example recommendation items
+    const dummyPrompts = [
+      {
+        recommendation: "Summarize any research paper",
+        prompt: "Summarize the following research paper into bullet points highlighting the key findings, methodology, and conclusion."
+      },
+      {
+        recommendation: "Generate startup ideas",
+        prompt: "Come up with 10 unique AI startup ideas that solve real-world problems using generative AI in healthcare or education."
+      },
+      {
+        recommendation: "Translate to Hindi",
+        prompt: "Translate the following text to Hindi while preserving tone and formality. Text:"
+      },
+      {
+        recommendation: "Brainstorm blog titles",
+        prompt: "Generate creative blog titles related to machine learning trends and AI tools for 2025."
+      }
+    ];
+
+    // recommendation status display
+    let _statusTimeout = null;
+    function setStatus(text, color = "#666", autoClearMs = 0) {
+      const el = document.getElementById("promptrs-status");
+      if (!el) return;
+      el.textContent = text;
+      el.style.color = color;
+      if (_statusTimeout) {
+        clearTimeout(_statusTimeout);
+        _statusTimeout = null;
+      }
+      if (autoClearMs > 0) {
+        _statusTimeout = setTimeout(() => {
+          el.textContent = "Idle";
+          el.style.color = "#666";
+        }, autoClearMs);
+      }
+    }
+
+    // fetch prompt recommendations from server
+    async function fetchRecommendations(query, k = 4) {
+      const list = document.getElementById("prompt-list");
+      setStatus("Updating...", "#0a64ff");
+      list.innerHTML = `<div class="loading">Loading recommendations...</div>`;
+
+      try {
+        // call recommend endpoint
+        const res = await fetch("/recommend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, k })
+        });
+
+        if (!res.ok) throw new Error("Server returned " + res.status);
+
+        // display results
+        const payload = await res.json();
+        const results = payload.results || [];
+        if (!results.length) {
+          renderDummyPrompts();
+          setStatus("No results · showing defaults", "#b06a00", 3000);
+          return;
+        }
+
+        renderPromptResults(results);
+        setStatus("Updated", "#2a9d4a", 2000);
+      } catch (err) {
+        console.warn("Recommendation fetch failed, using dummy prompts:", err);
+        renderDummyPrompts();
+        setStatus("Failed to update · showing defaults", "#c92a2a", 3000);
+      }
+    }
+
+    // render prompt items
+    function renderPromptResults(results) {
+      const list = document.getElementById("prompt-list");
+      list.innerHTML = "";
+
+      results.forEach(r => {
+        const meta = r.meta || {};
+        const title = meta.recommendation || meta.title || `Doc ${r.doc_id}`;
+        const promptText =
+          meta.prompt || meta.text || (typeof meta === "string" ? meta : JSON.stringify(meta));
+
+        const similarity = r.similarity !== undefined ? ` · sim: ${r.similarity}` : "";
+        const likeCount = meta.sum_votes !== undefined ? meta.sum_votes : 0;
+
+        const div = document.createElement("div");
+        div.classList.add("prompt-item");
+        div.innerHTML = `
+          <h3>${escapeHtml(title)}<small style="font-weight:400;color:#666">${similarity}</small></h3>
+          <p>${escapeHtml(shorten(promptText, 200))}</p>
+          <div class="prompt-actions">
+            <button class="use-btn">Use</button>
+            <div class="like-display">
+              <span class="like-icon">♥</span>
+              <span class="like-count">${likeCount}</span>
+            </div>
+          </div>
+        `;
+
+        // !!!IMPORTANT HERE!!!: user feedback interactions
+        // IMPORTANT NOTE : Add some way to collect this data
+
+        
+        // use prompt interaction
+        div.querySelector(".use-btn").addEventListener("click", () => {
+          const input = document.getElementById("user-input");
+          input.value = promptText;
+          autoResize(input);
+          input.focus();
+
+          // log [use] prompt action
+          sendFeedback("use", { title, promptText, similarity, likeCount });
+        });
+
+        // log [like] prompt action
+        const likeDisplay = div.querySelector(".like-display");
+        likeDisplay.addEventListener("click", () => {
+          likeDisplay.classList.toggle("liked");
+          
+          // send 'like' feedback to the server
+          const liked = likeDisplay.classList.contains("liked");
+          sendFeedback(liked ? "like" : "unlike", { title, promptText });
+        });
+
+        list.appendChild(div);
+      });
+    }
+
+    // render dummy prompts when failed to fetch
+    function renderDummyPrompts() {
+      const list = document.getElementById("prompt-list");
+      list.innerHTML = "";
+      dummyPrompts.slice(0, 4).forEach(item => {
+        const div = document.createElement("div");
+        div.classList.add("prompt-item");
+
+        const shortPrompt = item.prompt.length > 100 ? item.prompt.slice(0, 100) + "..." : item.prompt;
+        div.innerHTML = `
+          <h3>${escapeHtml(item.recommendation)}</h3>
+          <p>${escapeHtml(shortPrompt)}</p>
+          <div class="prompt-actions">
+            <button class="use-btn">Use</button>
+            <button class="open-btn">Open</button>
+          </div>
+        `;
+
+        div.querySelector(".use-btn").addEventListener("click", () => {
+          const input = document.getElementById("user-input");
+          input.value = item.prompt;
+          autoResize(input);
+          input.focus();
+        });
+
+        div.querySelector(".open-btn").addEventListener("click", () => {
+          appendMessage("PromptRS", `<strong>${escapeHtml(item.recommendation)}</strong><br>${escapeHtml(item.prompt)}`);
+        });
+
+        list.appendChild(div);
+      });
+    }
+
+    // short long texts to fit in window
+    function shorten(text, max) {
+      if (!text) return "";
+      return text.length > max ? text.slice(0, max) + "..." : text;
+    }
+
+    // small helper to avoid injecting raw HTML
+    function escapeHtml(str) {
+      if (str === undefined || str === null) return "";
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    // function to toggle sidebar
+    function togglePromptRS() {
+      const container = document.getElementById("promptrs");
+      const toggleBtn = document.getElementById("toggle-btn");
+      if (container.classList.contains("disabled")) {
+        container.classList.remove("disabled");
+        toggleBtn.textContent = "Disable";
+        toggleBtn.style.background = "#d9534f";
+      } else {
+        container.classList.add("disabled");
+        toggleBtn.textContent = "Enable";
+        toggleBtn.style.background = "#28a745";
+      }
+    }
+  </script>
+
+</body>
+</html>
