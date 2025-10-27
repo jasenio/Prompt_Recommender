@@ -206,7 +206,7 @@
       const list = document.getElementById("prompt-list");
       list.innerHTML = "";
 
-      results.forEach(r => {
+      results.forEach((r, idx) => {
         const meta = r.meta || {};
         const title = meta.recommendation || meta.title || `Doc ${r.doc_id}`;
         const promptText =
@@ -241,17 +241,17 @@
           input.focus();
 
           // log [use] prompt action
-          sendFeedback("use", { title, promptText, similarity, likeCount });
+          sendFeedback("use", { title, promptText, similarity, likeCount, rank: idx });
         });
 
-        // log [like] prompt action
+        // like prompt interaction
         const likeDisplay = div.querySelector(".like-display");
         likeDisplay.addEventListener("click", () => {
           likeDisplay.classList.toggle("liked");
           
-          // send 'like' feedback to the server
+          // log [like] prompt action
           const liked = likeDisplay.classList.contains("liked");
-          sendFeedback(liked ? "like" : "unlike", { title, promptText });
+          sendFeedback(liked ? "like" : "unlike", { title, promptText, rank: idx });
         });
 
         list.appendChild(div);
