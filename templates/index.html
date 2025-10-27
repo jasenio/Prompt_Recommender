@@ -251,7 +251,7 @@
           
           // log [like] prompt action
           const liked = likeDisplay.classList.contains("liked");
-          sendFeedback(liked ? "like" : "unlike", { title, promptText, rank: idx });
+          sendFeedback(liked ? "like" : "unlike", { title, promptText, similarity, likeCount, rank: idx });
         });
 
         list.appendChild(div);
