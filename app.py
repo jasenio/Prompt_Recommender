@@ -99,7 +99,7 @@ def get_bot_response():
     data = request.get_json()
     userText = data.get("msg", "")
     
-    return jsonify(response=get_completion(userText))
+    return get_completion(userText)
 
 
 # get top recommendations route
