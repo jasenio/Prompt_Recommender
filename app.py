@@ -94,12 +94,13 @@ def home():
     return render_template("index.html")
 
 # get generic response route
-@app.route("/get")
+@app.route("/get", methods=["POST"])
 def get_bot_response():    
-    userText = request.args.get('msg')  
-    response = get_completion(userText)  
+    data = request.get_json()
+    userText = data.get("msg", "")
     
-    return response
+    return jsonify(response=get_completion(userText))
+
 
 # get top recommendations route
 @app.route("/recommend", methods=["POST"])

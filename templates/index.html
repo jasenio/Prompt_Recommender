@@ -99,7 +99,12 @@
 
       // fetch generic bot response + prompt recommendations in parallel
       const recPromise = fetchRecommendations(message, 20);
-      const botPromise = fetch(`/get?msg=${encodeURIComponent(message)}`);
+      const botPromise = fetch('/get', {
+            method: 'POST',
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ msg: message })
+          });
+      // use get as cheaper, fetch(`/get?msg=${encodeURIComponent(message)}`);
 
       try {
         const res = await botPromise;
