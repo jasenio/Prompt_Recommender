@@ -21,13 +21,22 @@ os.environ["OPENAI_API_KEY"] = KEY
 client = OpenAI(organization=ORG, project=PROJ)
 
 # get generic response from OpenAI API
-def get_completion(prompt):
-    messages = [{"role": "user", "content": prompt}]
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=messages,
-    )
-    return response.choices[0].message.content
+def get_completion(prompt, prev_id):
+    request = {
+        "model": MODEL,
+        "input": prompt,
+        "store": True,
+    }
+
+    # store id to maintain conversation state
+    if prev_id is not None:
+        request["previous_response_id"] = prev_id
+
+    resp = client.responses.create(**request)
+
+    text = resp.output_text
+    new_id = resp.id
+    return text, new_id
 
 # get small embedding with OpenAI API
 def embed_query(text: str):
@@ -98,8 +107,14 @@ def home():
 def get_bot_response():    
     data = request.get_json()
     userText = data.get("msg", "")
-    
-    return get_completion(userText)
+    prev_id = data.get("prev_id")
+
+    text, new_id = get_completion(userText, prev_id)
+
+    return jsonify({
+        "text": text,
+        "new_id": new_id,
+    })
 
 
 # get top recommendations route
@@ -149,3 +164,4 @@ def feedback():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+    # app.run(debug=True)

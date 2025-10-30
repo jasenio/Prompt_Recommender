@@ -60,6 +60,9 @@
     }
     const SESSION_ID = getSessionId();
 
+    // track last chatbot response
+    let current_response_id;
+
     // log user feedback to the server
     async function sendFeedback(action, meta) {
       const payload = {
@@ -102,14 +105,18 @@
       const botPromise = fetch('/get', {
             method: 'POST',
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ msg: message })
+            body: JSON.stringify({ msg: message, prev_id: current_response_id })
           });
       // use get as cheaper, fetch(`/get?msg=${encodeURIComponent(message)}`);
 
       try {
         const res = await botPromise;
-        const data = await res.text();
-        responseEl.innerHTML = data.replace(/\n/g, "<br>");
+        const data = await res.json();
+        responseEl.innerHTML = data.text.replace(/\n/g, "<br>");
+
+        // update response id
+        current_response_id = data.new_id;
+
       } catch (err) {
         responseEl.innerHTML = "<span style='color:red;'>Error fetching response.</span>";
       }
