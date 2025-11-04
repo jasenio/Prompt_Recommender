@@ -48,54 +48,121 @@ def embed_query(text: str):
     emb /= np.linalg.norm(emb)
     return emb.tolist()
 
-# fetch top k entries from Postgres DB based on embedding
-def fetch_top_k(embedding, k):
 
-    # connect to Postgres and run query
-    with psycopg.connect(PG_URL) as conn:
-        with conn.cursor() as cur:
+# pure LLM recommendations
+def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
+    # recommend based on (1) user input, (2) bot repsonse to give (3) K recommendations
+    k = max(1, min(int(k), 20)) 
 
-            # retrieve items based on 1) cosine similarity, 2) upvote ratio, 3) sum upvotes, 4) randomness
-            cur.execute("""
-                WITH scored AS (
-                    SELECT
-                        doc_id, meta, upvote_ratio, sum_votes,
-                        -- cosine similarity in [-1,1]; rescale to [0,1] to mix cleanly
-                        (1 - (embedding <=> %s::vector))            AS cos_raw,
-                        ((1 - (embedding <=> %s::vector)) + 1) / 2  AS cos01,
+    sys_instructions = r"""
+    You are an expert generator of FOLLOW-UP prompts for students.
 
-                        -- gentle vote & ratio features
-                        LOG(1 + COALESCE(sum_votes,0))              AS votes_log,
-                        COALESCE(upvote_ratio, 0.5)                 AS ratio_raw
-                    FROM docs
-                    )
-                SELECT
-                    doc_id, meta, upvote_ratio, sum_votes,
-                    cos01,
-                    -- weights you can tune: w_cos dominates; votes/ratio are small nudges
-                    (0.9 * cos01)
-                    + (0.05 * (votes_log /  LOG(1 + 1000)))   -- # of votes
-                    + (0.05 * ratio_raw)                       -- # of 
-                    + (RANDOM() * 0.1) 
-                    AS final_score
-                    FROM scored
-                    ORDER BY final_score DESC
-                    LIMIT %s;
-                """,
-                (embedding, embedding, k))
-            rows = cur.fetchall()
+    ROLE
+    - Read (1) the student's original prompt and (2) YOUR LAST ANSWER to that prompt.
+    - Propose K broad, actionable FOLLOW-UP prompts about clarifying and expanding on the current topic (not just next steps; focus ~70% on current material, 30% on advancing).
+    - Prompts should be flexible so the student can easily edit them.
+    - DO NOT write answers—only follow-up prompts.
 
-    # process results
-    results = []
-    for doc_id, meta, upvote_ratio, sum_votes, cosine_sim, final_score in rows:
+    OUTPUT FORMAT (JSON ONLY)
+    Return valid JSON with this exact shape:
+    {
+    "results": [
+        {
+        "task": "<category label>",
+        "context": "<context pulled from the prior answer>",
+        "title": "<task + context as a short title>",
+        "output": "<what the student wants to receive>",
+        "recommendation": "<the full, student-ready follow-up prompt combining task + context + output>"
+        }
+    ]
+    }
+    Rules:
+    - Return exactly K items in "results".
+    - No prose before/after the JSON. JSON must be parseable.
 
-        results.append({
-            "doc_id": doc_id,
-            "similarity": round(float(final_score), 3),
-            "meta": meta
-        })
+    ALLOWED CATEGORIES (pick the best fit):
+    Idea Generation
+    Explain/Clarify Concepts
+    Identify
+    Drafting
+    Refining / Revision
+    Reflect (metacognitive self-checks)
+    Create (grounded in prior answer)
 
-    return results
+    STYLE & DIVERSITY REQUIREMENTS
+    - Mix conversational and academic tones.
+    - Include at least ONE Reflect and ONE Create item if possible.
+    - Prefer soft counts ("a few," "several") over strict numbers.
+    - Each "recommendation" should be concise, broad, and self-editable with brackets
+    - Ensure each item names a clear desired OUTPUT (tone, length, format).
+
+    TINY ALGORITHM
+    - INPUTS: student_prompt, assistant_answer, K (default 8)
+    - Map student needs as observed to: clarify/explain (majority), extend/generate, reflect, draft, revise, create.
+    - Use clarifying and explanatory prompts for current answer (~70%), next-step prompts (~30%).
+    - Enforce diversity AND broadness. Prompts should be easily adaptable.
+    - Validate JSON.
+
+    EXAMPLES
+    [
+        {
+        "task": "Explain quarterly trends.",
+        "context": "Reference Q2 and Q1 sales data.",
+        "output": "Focus on key factors affecting performance.",
+        "recommendation": "Explain quarterly sales trends referencing Q2 and Q1 data, focusing on the main factors that affected sales."
+        },
+        {
+            "task": "Explain/Clarify Concepts",
+            "context": "The answer mentioned inconsistent color coding and navigation issues.",
+            "title": "Clarify usability principles involved",
+            "output": "a short paragraph (100 words)",
+            "recommendation": "Explain which usability heuristics (e.g., consistency, feedback, efficiency) are most relevant to improving the dashboard's color scheme and navigation."
+        },
+        {
+        "task": "Refining / Revision",
+        "context": "The answer discussed emotional tone but not specific imagery.",
+        "title": "Revise for imagery support",
+        "output": "a revised analytical paragraph",
+        "recommendation": "Revise your analysis to include two or three concrete images or phrases from the text that strengthen your claim about mood."
+        },
+    ]
+
+    VALIDATION
+    - Output only valid JSON object with "results".
+    - Each item must have: task, output, recommendation. Context is preferred.
+    """
+
+    # augment prompt with inputs
+    prompt = f"""
+    ### Inputs
+    User input:
+    {user_input}
+
+    Bot's Response:
+    {bot_response}
+
+    K:
+    {k}
+    """
+
+    # try completion end point
+    resp = client.responses.create(
+        model=MODEL,
+        input=[
+            {"role": "system", "content": sys_instructions},
+            {"role": "user", "content": prompt},
+        ],
+        store=True,
+    )
+
+    raw = resp.output_text
+
+    # load into json and extract results
+    data = json.loads(raw)
+    results_list = data["results"] 
+
+    return results_list
+
 
 # root route
 @app.route("/")
@@ -120,20 +187,28 @@ def get_bot_response():
 # get top recommendations route
 @app.route("/recommend", methods=["POST"])
 def recommend():
-    data = request.get_json()
-    query = data.get("query")
-    k = int(data.get("k", 5))
-
-    if not query:
-        return jsonify({"error": "Missing 'query' field"}), 400
-
-    # embed + top-k fetch
     try:
-        emb = embed_query(query)
-        results = fetch_top_k(emb, k)
-        return jsonify({"query": query, "results": results})
+        data = request.get_json(force=True)
+
+        # recommend items based on (1) user input and (2) bot response
+        user_input   = data.get("user_input", "")     
+        bot_response = data.get("bot_response", "")  
+        k            = int(data.get("k", 5))
+
+        if not (user_input or bot_response):
+            return jsonify({"error": "Provide at least 'user_input' or 'bot_response'"}), 400
+
+        results = llm_recommendations(user_input, bot_response, k)
+
+        return jsonify({
+            "query": (user_input or "").strip(),
+            "results": results
+        })
+    
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"/recommend failed: {str(e)}"}), 500
 
 # collect user behavior (use/like)
 @app.route("/feedback", methods=["POST"])

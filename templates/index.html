@@ -3,8 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>ChatUI + Prompt RS</title>
-
-  <!-- main (only) stylesheet-->
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -21,35 +19,51 @@
 
       <!-- input area -->
       <footer class="input-area">
-        <textarea id="user-input" rows="1" placeholder="Type your message..." 
-          oninput="autoResize(this)" 
+        <textarea id="user-input" rows="1" placeholder="Type your message..."
+          oninput="autoResize(this)"
           onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage();}">
         </textarea>
         <button onclick="sendMessage()">Send</button>
       </footer>
+
+      <!-- recommendations toggle -->
+      <button id="see-recs-chip"
+              class="chip"
+              style="display:none;"
+              disabled
+              onclick="openRecommendations()">
+        Loading recommendations…
+      </button>
     </div>
 
-    <!-- promptRS side toggle -->
-    <div class="promptrs-toggle-wrapper">
-      <button id="toggle-btn" class="toggle-btn" onclick="togglePromptRS()">Disable</button>
-    </div>
-
-    <!-- promptRS main side bar -->
+    <!-- promptRS sidebar -->
     <div class="promptrs-container" id="promptrs">
       <div class="promptrs-header">
         <h2>Prompt RS</h2>
-         <div id="promptrs-status" class="promptrs-status" aria-live="polite" style="font-size:0.9rem;color:#666;margin-left:8px;">Idle</div>
+        <button aria-label="Close recommendations"
+                onclick="closeRecommendations()"
+                class="close-btn">✕</button>
       </div>
 
-      <!-- store recommended items -->
+      <!-- list (carousel style) -->
       <div id="prompt-list" class="prompt-list">
+        <!-- skeleton overlay -->
+        <div id="skeletons" class="skeletons" aria-hidden="true"></div>
+
+        <!-- items rendered -->
+        <div id="items"></div>
+        <div id="tail-skeletons" class="tail-skeletons" aria-hidden="true" style="display:none;"></div>
+
+        <!-- infinite scroll -->
+        <div id="sentinel" class="sentinel" aria-hidden="true"></div>
       </div>
     </div>
 
+  </div>
+
   <!-- scripts -->
   <script>
-
-    // track user sessions
+    // store session info + feedback
     function getSessionId() {
       let sid = localStorage.getItem("session_id");
       if (!sid) {
@@ -59,19 +73,16 @@
       return sid;
     }
     const SESSION_ID = getSessionId();
-
-    // track last chatbot response
     let current_response_id;
 
-    // log user feedback to the server
+    // send feedback to pgsql
     async function sendFeedback(action, meta) {
       const payload = {
         session_id: SESSION_ID,
         timestamp: new Date().toISOString(),
-        action,      // use or like
-        meta         // specific prompt used
+        action,
+        meta
       };
-
       try {
         await fetch("/feedback", {
           method: "POST",
@@ -83,49 +94,50 @@
       }
     }
 
-    
-
-    // handle generic user prompts (input)
+    // send message = (1) generic chatbot + (2) fetch recommendations
     async function sendMessage() {
       const input = document.getElementById("user-input");
       const message = input.value.trim();
       if (!message) return;
 
-      // display user message
       appendMessage("You", message);
+
+      closeRecommendations();
       input.value = "";
       input.style.height = "auto";
+      positionChip();
 
-      // display bot "thinking" while waiting
       appendMessage("Bot", "<em>Thinking...</em>");
       const responseEl = document.querySelector(".bot-msg:last-child p");
 
-      // fetch generic bot response + prompt recommendations in parallel
-      const recPromise = fetchRecommendations(message, 20);
-      const botPromise = fetch('/get', {
-            method: 'POST',
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ msg: message, prev_id: current_response_id })
-          });
-      // use get as cheaper, fetch(`/get?msg=${encodeURIComponent(message)}`);
-
       try {
-        const res = await botPromise;
+        const res = await fetch('/get', {
+          method: 'POST',
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ msg: message, prev_id: current_response_id })
+        });
         const data = await res.json();
-        responseEl.innerHTML = data.text.replace(/\n/g, "<br>");
 
-        // update response id
+        responseEl.innerHTML = data.text.replace(/\n/g, "<br>");
         current_response_id = data.new_id;
+
+        // recommend using bot output + original message
+        try {
+          await fetchRecommendations(message, data.text, 20);
+        } catch (recErr) {
+          console.warn('Recommendations failed:', recErr);
+        }
+
+        
 
       } catch (err) {
         responseEl.innerHTML = "<span style='color:red;'>Error fetching response.</span>";
       }
-      
-      // log [submit] action
-      sendFeedback("submit", {  });
+
+      // send [submit] feedback
+      sendFeedback("submit", {});
     }
 
-    // append message to chat box
     function appendMessage(sender, text) {
       const chatBox = document.getElementById("chat-box");
       const msgDiv = document.createElement("div");
@@ -138,178 +150,362 @@
     function autoResize(textarea) {
       textarea.style.height = "auto";
       textarea.style.height = Math.min(textarea.scrollHeight, 250) + "px";
+      positionChip();
     }
 
-    // example recommendation items
-    const dummyPrompts = [
-      {
-        recommendation: "Summarize any research paper",
-        prompt: "Summarize the following research paper into bullet points highlighting the key findings, methodology, and conclusion."
-      },
-      {
-        recommendation: "Generate startup ideas",
-        prompt: "Come up with 10 unique AI startup ideas that solve real-world problems using generative AI in healthcare or education."
-      },
-      {
-        recommendation: "Translate to Hindi",
-        prompt: "Translate the following text to Hindi while preserving tone and formality. Text:"
-      },
-      {
-        recommendation: "Brainstorm blog titles",
-        prompt: "Generate creative blog titles related to machine learning trends and AI tools for 2025."
-      }
-    ];
+    // manage recommendation state
+    let REC_STATE = "idle";
+    let RECS = [];                 // all items
+    let NEXT_TOKEN = null;         // optional pagination from backend
+    let IS_LOADING_MORE = false;   // guard for load-more
 
-    // recommendation status display
-    let _statusTimeout = null;
-    function setStatus(text, color = "#666", autoClearMs = 0) {
-      const el = document.getElementById("promptrs-status");
-      if (!el) return;
-      el.textContent = text;
-      el.style.color = color;
-      if (_statusTimeout) {
-        clearTimeout(_statusTimeout);
-        _statusTimeout = null;
-      }
-      if (autoClearMs > 0) {
-        _statusTimeout = setTimeout(() => {
-          el.textContent = "Idle";
-          el.style.color = "#666";
-        }, autoClearMs);
-      }
+    // carousel specs
+    let STRIDE = 98;               // item height + gap (px)
+    let VISIBLE_ITEMS = 3;         // visible items in viewport
+
+    // DOM refs for carousel list 
+    const listEl = document.getElementById("prompt-list");
+    const itemsEl = document.getElementById("items");
+    const skelEl = document.getElementById("skeletons");
+    const tailSkelEl = document.getElementById("tail-skeletons");
+    const sentinelEl = document.getElementById("sentinel");
+
+    // update css config using css vars
+    function readCSSConfig() {
+      const rootStyles = getComputedStyle(document.documentElement);
+      const itemH = parseInt(rootStyles.getPropertyValue("--item-h")) || 88;
+      const itemGap = parseInt(rootStyles.getPropertyValue("--item-gap")) || 10;
+      const vis = parseInt(rootStyles.getPropertyValue("--visible-items")) || 3;
+      STRIDE = itemH + itemGap;
+      VISIBLE_ITEMS = vis;
     }
 
-    // fetch prompt recommendations from server
-    async function fetchRecommendations(query, k = 4) {
-      const list = document.getElementById("prompt-list");
-      setStatus("Updating...", "#0a64ff");
-      list.innerHTML = `<div class="loading">Loading recommendations...</div>`;
+    // control LOADING vs SEE RECS vs IDLE states
+    function setRecState(next) {
+      REC_STATE = next;
+      const chip = document.getElementById("see-recs-chip");
 
+      if (next === "loading") {
+        if (chip) {
+          chip.textContent = "Loading recommendations…";
+          chip.style.display = "inline-block";
+          chip.disabled = true; // disable recs while loading
+        }
+        if (skelEl) renderSkeletons(skelEl, 6); 
+      } else if (next === "loaded") {
+        if (chip) {
+          chip.textContent = "See recommendations";
+          chip.style.display = "inline-block";
+          chip.disabled = false;
+        }
+        if (skelEl) skelEl.innerHTML = ""; 
+      } else {
+        if (chip) {
+          chip.style.display = "none";
+          chip.disabled = true; // hide recs if not loaded
+        }
+        if (skelEl) skelEl.innerHTML = "";
+      }
+      positionChip();
+    }
+
+    // control opening / closing recommendations
+    function openRecommendations() {
+      const chip = document.getElementById("see-recs-chip");
+      if (chip && chip.disabled) return;
+      if (REC_STATE !== "loaded") return;
+
+      const sidebar = document.getElementById("promptrs");
+      const chat = document.querySelector(".chat-container");
+      if (!sidebar || !chat) return;
+
+      sidebar.classList.add("open");
+      chat.classList.add("with-sidebar");
+      chip.style.display = "none";
+
+      requestAnimationFrame(() => {
+        renderAllItems();
+        updateHighlightedItems();
+        listEl?.focus?.();
+      });
+    }
+
+    function closeRecommendations() {
+      const sidebar = document.getElementById("promptrs");
+      const chat = document.querySelector(".chat-container");
+      const chip = document.getElementById("see-recs-chip");
+      if (!sidebar || !chat || !chip) return;
+
+      sidebar.classList.remove("open");
+      chat.classList.remove("with-sidebar");
+      if (REC_STATE === "loaded") chip.style.display = "inline-block";
+      positionChip();
+    }
+
+    // fetch and render recommendations
+    let LAST_QUERY = "", LAST_BOT_TEXT = "";
+
+    async function fetchRecommendations(query, bot_response, k = 20, page_token = null) {
       try {
-        // call recommend endpoint
+        if (!page_token) {
+          setRecState("loading");  
+        } else {
+          IS_LOADING_MORE = true;
+          if (tailSkelEl) { tailSkelEl.style.display = "block"; renderSkeletons(tailSkelEl, 3); }
+        }
+
         const res = await fetch("/recommend", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query, k })
+          body: JSON.stringify({ user_input: query, bot_response, k, page_token })
         });
 
         if (!res.ok) throw new Error("Server returned " + res.status);
 
-        // display results
         const payload = await res.json();
         const results = payload.results || [];
-        if (!results.length) {
-          renderDummyPrompts();
-          setStatus("No results · showing defaults", "#b06a00", 3000);
-          return;
+        NEXT_TOKEN = payload.next_page_token || null;
+
+        if (!page_token) {
+          RECS = results.length ? results : getDummyPrompts();
+          LAST_QUERY = query || LAST_QUERY;
+          LAST_BOT_TEXT = bot_response || LAST_BOT_TEXT;
+          setRecState("loaded");
+          listEl.scrollTop = 0;
+          renderAllItems();
+          updateHighlightedItems();
+        } else {
+          RECS = RECS.concat(results);
+          IS_LOADING_MORE = false;
+          if (tailSkelEl) { tailSkelEl.style.display = "none"; tailSkelEl.innerHTML = ""; }
+          renderAllItems();
+          updateHighlightedItems();
         }
 
-        renderPromptResults(results);
-        setStatus("Updated", "#2a9d4a", 2000);
       } catch (err) {
-        console.warn("Recommendation fetch failed, using dummy prompts:", err);
-        renderDummyPrompts();
-        setStatus("Failed to update · showing defaults", "#c92a2a", 3000);
+        console.warn("Recommendation fetch failed:", err);
+        if (!page_token) {
+          RECS = getDummyPrompts();
+          setRecState("loaded");
+          renderAllItems();
+          updateHighlightedItems();
+        } else {
+          IS_LOADING_MORE = false;
+          if (tailSkelEl) { tailSkelEl.style.display = "none"; tailSkelEl.innerHTML = ""; }
+        }
       }
     }
 
-    // render prompt items
-    function renderPromptResults(results) {
-      const list = document.getElementById("prompt-list");
-      list.innerHTML = "";
+    // render all items with clones for infinite scroll
+    function renderAllItems() {
+      if (!itemsEl) return;
+      itemsEl.innerHTML = "";
+      
+      const totalCards = RECS.length;
+      
+      if (totalCards > VISIBLE_ITEMS) {
 
-      results.forEach((r, idx) => {
-        const meta = r.meta || {};
-        const title = meta.recommendation || meta.title || `Doc ${r.doc_id}`;
-        const promptText =
-          meta.prompt || meta.text || (typeof meta === "string" ? meta : JSON.stringify(meta));
+        // use clones to appear at top
+        for (let i = totalCards - VISIBLE_ITEMS; i < totalCards; i++) {
+          const clone = renderCard(RECS[i], i);
+          clone.classList.add("clone");
+          itemsEl.appendChild(clone);
+        }
+      }
+      
+      // add real items
+      RECS.forEach((r, idx) => itemsEl.appendChild(renderCard(r, idx)));
+      
+      if (totalCards > VISIBLE_ITEMS) {
+        // add clones of first to bottom
+        for (let i = 0; i < VISIBLE_ITEMS; i++) {
+          const clone = renderCard(RECS[i], i);
+          clone.classList.add("clone");
+          itemsEl.appendChild(clone);
+        }
+      }
+      
+      // set initial scroll position to skip top clones
+      if (totalCards > VISIBLE_ITEMS) {
+        listEl.scrollTop = VISIBLE_ITEMS * STRIDE;
+      }
+    }
 
-        const similarity = r.similarity !== undefined ? ` · sim: ${r.similarity}` : "";
-        const likeCount = meta.sum_votes !== undefined ? meta.sum_votes : 0;
+    // update highlighted items based on scroll position
+    function updateHighlightedItems() {
+      if (!listEl || !itemsEl) return;
 
-        const div = document.createElement("div");
-        div.classList.add("prompt-item");
-        div.innerHTML = `
-          <h3>${escapeHtml(title)}<small style="font-weight:400;color:#666">${similarity}</small></h3>
-          <p>${escapeHtml(shorten(promptText, 200))}</p>
-          <div class="prompt-actions">
-            <button class="use-btn">Use</button>
-            <div class="like-display">
-              <span class="like-icon">♥</span>
-              <span class="like-count">${likeCount}</span>
-            </div>
-          </div>
-        `;
+      const scrollTop = listEl.scrollTop;
+      const listHeight = listEl.clientHeight;
+      
+      // calculate the center position of the visible area
+      const centerScroll = scrollTop + (listHeight / 2);
+      const centerIndex = Math.round(centerScroll / STRIDE);
+      
+      // highlight visible items centered around the center of viewport
+      const halfVisible = Math.floor(VISIBLE_ITEMS / 2);
+      const startHighlight = centerIndex - halfVisible;
+      const endHighlight = startHighlight + VISIBLE_ITEMS;
 
-        // !!!IMPORTANT HERE!!!: user feedback interactions
-        // IMPORTANT NOTE : Add some way to collect this data
-
+      const cards = itemsEl.querySelectorAll(".prompt-item");
+      const totalCards = cards.length;
+      
+      cards.forEach((card, idx) => {
+        // allow highlighting at the end by not restricting bounds
+        let isHighlighted = false;
         
-        // use prompt interaction
-        div.querySelector(".use-btn").addEventListener("click", () => {
-          const input = document.getElementById("user-input");
-          input.value = promptText;
-          autoResize(input);
-          input.focus();
+        if (totalCards <= VISIBLE_ITEMS) {
+          // highltight all if few items
+          isHighlighted = true;
+        } else if (centerIndex < halfVisible) {
+          // higlight from top - first VISIBLE_ITEMS
+          isHighlighted = idx < VISIBLE_ITEMS;
+        } else if (centerIndex >= totalCards - halfVisible) {
+          // highlight from bottom - last VISIBLE_ITEMS
+          isHighlighted = idx >= totalCards - VISIBLE_ITEMS;
+        } else {
+          // highlight normal range
+          isHighlighted = idx >= startHighlight && idx < endHighlight;
+        }
+        
+        if (isHighlighted) {
+          card.classList.add("in-viewport");
 
-          // log [use] prompt action
-          sendFeedback("use", { title, promptText, similarity, likeCount, rank: idx });
-        });
+          // detect center one (middle of the visible band)
+          const centerOffset = Math.floor(VISIBLE_ITEMS / 2);
+          const centerIdx = startHighlight + centerOffset;
+          if (idx === centerIdx) {
+            card.classList.add("center-item");
+          } else {
+            card.classList.remove("center-item");
+          }
+        } else {
+          card.classList.remove("in-viewport", "center-item");
+        }
 
-        // like prompt interaction
-        const likeDisplay = div.querySelector(".like-display");
-        likeDisplay.addEventListener("click", () => {
-          likeDisplay.classList.toggle("liked");
-          
-          // log [like] prompt action
-          const liked = likeDisplay.classList.contains("liked");
-          sendFeedback(liked ? "like" : "unlike", { title, promptText, similarity, likeCount, rank: idx });
-        });
-
-        list.appendChild(div);
       });
     }
 
-    // render dummy prompts when failed to fetch
-    function renderDummyPrompts() {
-      const list = document.getElementById("prompt-list");
-      list.innerHTML = "";
-      dummyPrompts.slice(0, 4).forEach(item => {
-        const div = document.createElement("div");
-        div.classList.add("prompt-item");
+    // handle infinite looping scroll
+    function handleInfiniteScroll() {
+      if (!listEl) return;
 
-        const shortPrompt = item.prompt.length > 100 ? item.prompt.slice(0, 100) + "..." : item.prompt;
-        div.innerHTML = `
-          <h3>${escapeHtml(item.recommendation)}</h3>
-          <p>${escapeHtml(shortPrompt)}</p>
-          <div class="prompt-actions">
-            <button class="use-btn">Use</button>
-            <button class="open-btn">Open</button>
-          </div>
-        `;
+      const scrollTop = listEl.scrollTop;
+      const scrollHeight = listEl.scrollHeight;
+      const clientHeight = listEl.clientHeight;
+      const totalCards = RECS.length;
+      if (totalCards === 0) return;
 
-        div.querySelector(".use-btn").addEventListener("click", () => {
-          const input = document.getElementById("user-input");
-          input.value = item.prompt;
-          autoResize(input);
-          input.focus();
-        });
+      const threshold = STRIDE * 0.5; // smaller threshold for smoother looping
 
-        div.querySelector(".open-btn").addEventListener("click", () => {
-          appendMessage("PromptRS", `<strong>${escapeHtml(item.recommendation)}</strong><br>${escapeHtml(item.prompt)}`);
-        });
-
-        list.appendChild(div);
-      });
+      // when near top (clone region), jump to mirrored position smoothly
+      if (scrollTop <= threshold) {
+        const newScrollTop = scrollTop + (totalCards * STRIDE);
+        listEl.scrollTo({ top: newScrollTop, behavior: "auto" });
+      }
+      // when near bottom (clone region), jump up to the mirrored items
+      else if (scrollTop >= scrollHeight - clientHeight - threshold) {
+        const newScrollTop = scrollTop - (totalCards * STRIDE);
+        listEl.scrollTo({ top: newScrollTop, behavior: "auto" });
+      }
     }
 
-    // short long texts to fit in window
+    function onScrollHandler() {
+      updateHighlightedItems();
+      handleInfiniteScroll();
+    }
+
+    // render each card = (1) title + (2) prompt
+    function renderCard(r, absoluteIndex) {
+      const meta = r.meta || {};
+      const title = r.title || r.task || r.recommendation || meta.recommendation || meta.title || `Doc ${r.doc_id || absoluteIndex}`;
+      const promptText =
+        r.prompt || r.recommendation || meta.prompt || meta.text || (typeof meta === "string" ? meta : JSON.stringify(meta));
+
+      // legacy
+      const similarity = (r.similarity !== undefined) ? ` · sim: ${r.similarity}` : "";
+
+      const div = document.createElement("div");
+      div.classList.add("prompt-item");
+      div.setAttribute("role", "button");
+      div.setAttribute("tabindex", "0");
+      div.setAttribute("aria-label", `Use recommendation: ${title}`);
+
+      div.innerHTML = `
+        <h3>${escapeHtml(title)}<small class="sim">${escapeHtml(similarity)}</small></h3>
+        <p>${escapeHtml(shorten(promptText, 200))}</p>
+      `;
+
+      // track if item is inspected
+      const useAction = () => {
+        const input = document.getElementById("user-input");
+        input.value = promptText;
+        autoResize(input);
+        input.focus();
+        sendFeedback("use", { title, promptText, similarity, index: absoluteIndex });
+        flashCard(div);
+      };
+
+      div.addEventListener("click", useAction);
+      div.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          useAction();
+        }
+      });
+
+      return div;
+    }
+
+    function flashCard(el) {
+      el.classList.add("used");
+      setTimeout(() => el.classList.remove("used"), 600);
+    }
+
+    // skeletons
+    function renderSkeletons(container, count) {
+      const arr = Array.from({ length: count });
+      container.innerHTML = arr.map(() => `
+        <div class="skeleton-card">
+          <div class="skel-title shimmer"></div>
+          <div class="skel-line shimmer"></div>
+        </div>
+      `).join("");
+    }
+
+    // render defualt dummy prompts on error
+    function getDummyPrompts() {
+      return [
+        { title: "Example 1", prompt: "Tell me about AI safety" },
+        { title: "Example 2", prompt: "How does machine learning work?" },
+        { title: "Example 3", prompt: "Explain neural networks" }
+      ];
+    }
+
+    // ========= Infinite scroll (optional) =========
+    const io = new IntersectionObserver(async (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        if (!NEXT_TOKEN || IS_LOADING_MORE) continue;
+        IS_LOADING_MORE = true;
+        if (tailSkelEl) { tailSkelEl.style.display = "block"; renderSkeletons(tailSkelEl, 3); }
+        try {
+          await fetchRecommendations(LAST_QUERY, LAST_BOT_TEXT, 20, NEXT_TOKEN);
+        } catch {
+          IS_LOADING_MORE = false;
+          if (tailSkelEl) { tailSkelEl.style.display = "none"; tailSkelEl.innerHTML = ""; }
+        }
+      }
+    }, { root: listEl, rootMargin: "200px 0px", threshold: 0 });
+
+    io.observe(sentinelEl);
+
+    // misc helpers
     function shorten(text, max) {
       if (!text) return "";
       return text.length > max ? text.slice(0, max) + "..." : text;
     }
 
-    // small helper to avoid injecting raw HTML
     function escapeHtml(str) {
       if (str === undefined || str === null) return "";
       return String(str)
@@ -320,20 +516,31 @@
         .replaceAll("'", "&#039;");
     }
 
-    // function to toggle sidebar
-    function togglePromptRS() {
-      const container = document.getElementById("promptrs");
-      const toggleBtn = document.getElementById("toggle-btn");
-      if (container.classList.contains("disabled")) {
-        container.classList.remove("disabled");
-        toggleBtn.textContent = "Disable";
-        toggleBtn.style.background = "#d9534f";
-      } else {
-        container.classList.add("disabled");
-        toggleBtn.textContent = "Enable";
-        toggleBtn.style.background = "#28a745";
-      }
+    // position chip above submit area
+    function positionChip() {
+      const chip = document.getElementById("see-recs-chip");
+      const footer = document.querySelector(".input-area");
+      if (!chip || !footer) return;
+      const offset = footer.offsetHeight + 12;
+      chip.style.bottom = offset + "px";
     }
+    window.addEventListener("resize", positionChip);
+
+    // init
+    document.addEventListener("DOMContentLoaded", () => {
+      readCSSConfig();   
+      setRecState("idle");
+      positionChip();
+    });
+
+    // update css vars on window resize
+    window.addEventListener("resize", () => {
+      readCSSConfig();
+      updateHighlightedItems();
+    });
+
+    // handle scrolling for carousel
+    listEl.addEventListener("scroll", onScrollHandler);
   </script>
 
 </body>

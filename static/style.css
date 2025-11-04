@@ -1,4 +1,11 @@
-/* base layout*/
+/* config carousel vars*/
+:root {
+  --item-h: 88px;         /* card height*/
+  --item-gap: 10px;       /* gap between cards */
+  --visible-items: 3;     /* hightlighted items in carousel */
+}
+
+/* base */
 body {
   margin: 0;
   padding: 0;
@@ -18,22 +25,32 @@ body {
   position: relative;
 }
 
-/* generic chatbot section */
+/* generic chat containers */
 .chat-container {
-  flex: 3;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   background: #fff;
   border-radius: 10px;
   box-shadow: 0 0 10px rgba(0,0,0,0.1);
   overflow: hidden;
+  position: relative; /* for chip positioning */
+  transition: margin-right 0.25s ease;
 }
 
 header {
-  background-color: #0078ff;
-  color: white;
-  padding: 1rem;
-  text-align: center;
+  background-color: #f5f7fa;
+  color: #333;
+  font-size: 1rem;
+  font-weight: 500;
+  padding: 0.6rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+header h1 {
+  font-size: 1.1rem;
+  margin: 0;
+  color: #222;
 }
 
 .chat-box {
@@ -71,20 +88,11 @@ button {
   cursor: pointer;
   font-size: 15px;
 }
+button:hover { background: #005fcc; }
 
-button:hover {
-  background: #005fcc;
-}
-
-/* user messages */
-.message {
-  margin-bottom: 15px;
-  line-height: 1.5;
-}
-
-.user-msg {
-  text-align: right;
-}
+/* message inputs */
+.message { margin-bottom: 15px; line-height: 1.5; }
+.user-msg { text-align: right; }
 
 .user-msg p {
   display: inline-block;
@@ -104,159 +112,204 @@ button:hover {
   color: #222;
 }
 
-/* promptRS side component */
+/* promptRS sidebar containers */
 .promptrs-container {
-  flex: 1;
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 360px;
+  z-index: 10;
+  transform: translateX(110%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.35s ease, opacity 0.25s ease;
   display: flex;
   flex-direction: column;
   background: #fff;
   border-radius: 10px;
   box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  overflow: hidden;
-  transition: transform 0.4s ease, opacity 0.3s ease;
+}
+.promptrs-container.open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
-/* slide anim */
-.promptrs-container.disabled {
-  transform: translateX(120%);
-  opacity: 0;
-  pointer-events: none;
-}
+/* shift chat container when opened */
+.chat-container.with-sidebar { margin-right: 370px; }
 
+/* side header */
 .promptrs-header {
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: space-between; /* left title, right X */
   background: #f1f1f1;
   padding: 10px 15px;
-  border-bottom: 1px solid #ddd;
+  border: 1px solid #ddd;
+  border-radius: 10px 10px 0 0;
+  flex-shrink: 0;
 }
+.promptrs-header h2 { margin: 0; font-size: 16px; }
 
-.promptrs-header h2 {
-  margin: 0;
-}
-
-/* toggle promptrs component */
-.promptrs-toggle-wrapper {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 999;
-}
-
-.toggle-btn {
-  background: #d9534f;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 14px;
+.close-btn {
+  border: 0;
+  background: transparent;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-  transition: background 0.3s ease;
+  font-size: 18px;
+  line-height: 1;
+  color: #666;
 }
+.close-btn:hover { color: #333; }
 
-.toggle-btn:hover {
-  background: #c9302c;
-}
-
-/* recommended items list */
+/* prompt list using carousel style */
 .prompt-list {
+  position: relative;
   flex: 1;
   padding: 15px;
   overflow-y: auto;
+  overflow-x: hidden;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* IE/Edge */
 }
+.prompt-list::-webkit-scrollbar { display: none; }
 
+#items { display: block; position: relative; }
+
+/* item cards */
 .prompt-item {
+  box-sizing: border-box;
+  height: var(--item-h);
   background: #f8f8f8;
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 10px;
-  margin-bottom: 10px;
-  transition: background 0.2s;
+  margin: 0 0 var(--item-gap) 0;
+  transition: opacity 0.3s ease, transform 0.3s ease, background 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  /* fade and shrink when non highlighted */
+  opacity: 0.15;
+  transform: scale(0.9);
+  pointer-events: none;
 }
 
-.prompt-item:hover {
+/* highlight center items */
+.prompt-item.center-item {
+  opacity: 1;
+  transform: scale(1.1);
+  z-index: 2;
   background: #f0f8ff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transition: all 0.25s ease;
 }
+
+/* items within visible band */
+.prompt-item.in-viewport {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+.prompt-item.in-viewport:hover {
+  background: #f0f8ff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transform: scale(1.02);
+}
+.prompt-item.in-viewport:active { transform: scale(0.98); }
+.prompt-item.in-viewport:focus-visible { box-shadow: 0 0 0 3px rgba(0,120,255,0.35); }
+.prompt-item.used { box-shadow: 0 0 0 3px rgba(42,157,74,0.35); background: #f4fff7; }
 
 .prompt-item h3 {
   font-size: 15px;
-  margin: 0 0 5px 0;
-  color: #0078ff;
+  margin: 0 0 6px 0;
+  color: #000;
+  line-height: 1.2;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
+.prompt-item h3 .sim { margin-left: 6px; font-weight: 400; color: #666; }
 
 .prompt-item p {
   margin: 0;
   color: #333;
   font-size: 14px;
   line-height: 1.4;
-  white-space: pre-wrap;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* prompt item actions (USE+LIKE) */
-.prompt-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
+/* skeleton */
+.skeletons {
+  position: absolute;
+  inset: 15px 15px auto 15px; /* top 15, right 15, bottom auto, left 15 */
+  z-index: 2;
+  pointer-events: none;
 }
+.skeleton-card {
+  height: var(--item-h);
+  border-radius: 8px;
+  border: 1px solid #eee;
+  background: #f3f4f6;
+  margin-bottom: var(--item-gap);
+  padding: 12px;
+  box-sizing: border-box;
+}
+.skel-title { width: 40%; height: 16px; background: #e5e7eb; border-radius: 4px; margin-bottom: 10px; }
+.skel-line  { width: 85%; height: 14px; background: #e5e7eb; border-radius: 4px; }
 
-.use-btn {
-  background: #0078ff;
-  color: white;
-  border: none;
-  padding: 6px 14px;
-  border-radius: 6px;
-  cursor: pointer;
+.shimmer { position: relative; overflow: hidden; }
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+  animation: shimmer 1.2s infinite;
+}
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+
+/* tail skeletons during load-more */
+.tail-skeletons .skeleton-card { opacity: 0.9; }
+
+/* sentinel for infinite scroll */
+.sentinel { height: 1px; }
+
+/* chip for toggling recs */
+.chip {
+  position: absolute;
+  right: 16px;
+  bottom: 84px; /* fallback; updated via JS to footerHeight + 12px */
+  padding: 8px 12px;
+  border-radius: 999px;
   font-size: 13px;
-  font-weight: 500;
-  transition: background 0.3s ease;
+  background: #f1f5ff;
+  color: #0a64ff;
+  border: 1px solid #cddaff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+  pointer-events: none; /* disable clicks */
 }
 
-.use-btn:hover {
-  background: #005fcc;
-}
-
-/* likes */
-.like-display {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  padding: 6px 10px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  user-select: none;
-}
-
-.like-display:hover {
-  background: #fff0f0;
-  border-color: #ffb3b3;
-}
-
-.like-icon {
-  color: #ffc5c5;
-  font-size: 15px;
-}
-
-.like-count {
-  font-size: 14px;
-  color: #333;
-}
-
-.like-display.liked .like-icon {
-  color: #d92b2b;
-  transform: scale(1.5);
-}
-
-/* handle scrolling */
+/* handle scrolling*/
 .chat-box::-webkit-scrollbar,
-.prompt-list::-webkit-scrollbar {
-  width: 10px;
-}
+.prompt-list::-webkit-scrollbar { width: 10px; }
 
 .chat-box::-webkit-scrollbar-thumb,
 .prompt-list::-webkit-scrollbar-thumb {
