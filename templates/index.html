@@ -75,13 +75,33 @@
     const SESSION_ID = getSessionId();
     let current_response_id;
 
+    // store URL params : pid, group, and task #
+    const urlParams = new URLSearchParams(window.location.search);
+    const PID   = urlParams.get("pid")   || "unknown_pid";
+    const GROUP = urlParams.get("group") || "unknown_group";
+    const TASK  = urlParams.get("task")  || "unknown_task";
+
+    function detRecs(group, task) {
+      if ((group === "A" || group === "C") && task === "1") return true;
+      if ((group === "B" || group === "D") && task === "2") return true;
+      return false;
+    }
+
+    const SHOW_REC = detRecs(GROUP, TASK);
+
     // send feedback to pgsql
     async function sendFeedback(action, meta) {
       const payload = {
         session_id: SESSION_ID,
         timestamp: new Date().toISOString(),
         action,
-        meta
+        meta: {
+          // append PID, group, and task
+          pid: PID,
+          group: GROUP,
+          task: TASK,
+          ...meta  
+        }
       };
       try {
         await fetch("/feedback", {
@@ -122,20 +142,22 @@
         current_response_id = data.new_id;
 
         // recommend using bot output + original message
-        try {
-          await fetchRecommendations(message, data.text, 20);
-        } catch (recErr) {
-          console.warn('Recommendations failed:', recErr);
+        if(SHOW_REC){ // ONLY SHOW FOR CERTAIN PARTICIPANTS
+            try {
+            await fetchRecommendations(message, data.text, 10);
+          } catch (recErr) {
+            console.warn('Recommendations failed:', recErr);
+          }
         }
-
         
 
+      
       } catch (err) {
         responseEl.innerHTML = "<span style='color:red;'>Error fetching response.</span>";
       }
 
       // send [submit] feedback
-      sendFeedback("submit", {});
+      sendFeedback("submit", {prompt: message});
     }
 
     function appendMessage(sender, text) {

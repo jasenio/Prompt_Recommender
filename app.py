@@ -148,11 +148,11 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
     # try completion end point
     resp = client.responses.create(
         model=MODEL,
+        instructions = sys_instructions,
         input=[
-            {"role": "system", "content": sys_instructions},
             {"role": "user", "content": prompt},
         ],
-        store=True,
+        store=False,
     )
 
     raw = resp.output_text
@@ -166,7 +166,24 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
 
 # root route
 @app.route("/")
-def home():    
+def home():
+    # check if labels are present
+    pid = request.args.get("pid")
+    group = request.args.get("group")
+    task = request.args.get("task")
+
+     # validation rules
+    valid_groups = {"A", "B", "C", "D"}
+    valid_tasks = {"1", "2"}
+
+    # check missing or invalid params
+    if not pid:
+        return "Missing participant ID (?pid=)", 403
+    if group not in valid_groups:
+        return f"Invalid group '{group}'. Must be one of A-D.", 403
+    if task not in valid_tasks:
+        return f"Invalid task '{task}'. Must be 1 or 2.", 403
+    
     return render_template("index.html")
 
 # get generic response route
