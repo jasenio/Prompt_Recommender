@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>ChatUI + Prompt RS</title>
+  <title>ChatUI</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <!-- generic chatbot interface -->
     <div class="chat-container">
       <header>
-        <h1>Chat with GPT</h1>
+        <h1>WritingBot</h1>
       </header>
 
       <!-- message area -->
@@ -39,7 +39,7 @@
     <!-- promptRS sidebar -->
     <div class="promptrs-container" id="promptrs">
       <div class="promptrs-header">
-        <h2>Prompt RS</h2>
+        <h2>Prompt Helper</h2>
         <button aria-label="Close recommendations"
                 onclick="closeRecommendations()"
                 class="close-btn">✕</button>
@@ -143,6 +143,7 @@
 
         // recommend using bot output + original message
         if(SHOW_REC){ // ONLY SHOW FOR CERTAIN PARTICIPANTS
+            closeRecommendations();
             try {
             await fetchRecommendations(message, data.text, 10);
           } catch (recErr) {
@@ -464,7 +465,8 @@
         input.value = promptText;
         autoResize(input);
         input.focus();
-        sendFeedback("use", { title, promptText, similarity, index: absoluteIndex });
+
+        // sendFeedback("use", { title, promptText, similarity, index: absoluteIndex });
         flashCard(div);
       };
 

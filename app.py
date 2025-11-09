@@ -26,6 +26,10 @@ def get_completion(prompt, prev_id):
         "model": MODEL,
         "input": prompt,
         "store": True,
+        "reasoning": {
+            "effort": "low",  
+        },
+        "service_tier": "priority",
     }
 
     # store id to maintain conversation state
@@ -55,12 +59,12 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
     k = max(1, min(int(k), 20)) 
 
     sys_instructions = r"""
-    You are an expert generator of FOLLOW-UP prompts for students.
+    You are an expert generator of FOLLOW-UP prompts for writers.
 
     ROLE
-    - Read (1) the student's original prompt and (2) YOUR LAST ANSWER to that prompt.
-    - Propose K broad, actionable FOLLOW-UP prompts about clarifying and expanding on the current topic (not just next steps; focus ~70% on current material, 30% on advancing).
-    - Prompts should be flexible so the student can easily edit them.
+    - Read (1) the writers's original prompt and (2) YOUR LAST ANSWER to that prompt.
+    - Propose K actionable, concise FOLLOW-UP prompts clarifying or expanding on the current topic (not just next steps; focus ~50% on current material, ~50% on advancing ideas).
+    - Prompts should be concise and flexible so the writer can easily edit them. (for example, using brackets [] with examples of what to fill in).
     - DO NOT write answers—only follow-up prompts.
 
     OUTPUT FORMAT (JSON ONLY)
@@ -76,32 +80,27 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
         }
     ]
     }
-    Rules:
-    - Return exactly K items in "results".
-    - No prose before/after the JSON. JSON must be parseable.
 
     ALLOWED CATEGORIES (pick the best fit):
-    Idea Generation
-    Explain/Clarify Concepts
-    Identify
-    Drafting
-    Refining / Revision
-    Reflect (metacognitive self-checks)
-    Create (grounded in prior answer)
+     1. Planning
+    - Brainstorm topics and ideas  
+    - Search literature  
+    - Create outline
 
-    STYLE & DIVERSITY REQUIREMENTS
-    - Mix conversational and academic tones.
-    - Include at least ONE Reflect and ONE Create item if possible.
-    - Prefer soft counts ("a few," "several") over strict numbers.
-    - Each "recommendation" should be concise, broad, and self-editable with brackets
-    - Ensure each item names a clear desired OUTPUT (tone, length, format).
+     2. Drafting
+    - Generate Ideas
+    - Explain concepts
+    - Develop supporting points  
 
-    TINY ALGORITHM
-    - INPUTS: student_prompt, assistant_answer, K (default 8)
-    - Map student needs as observed to: clarify/explain (majority), extend/generate, reflect, draft, revise, create.
-    - Use clarifying and explanatory prompts for current answer (~70%), next-step prompts (~30%).
-    - Enforce diversity AND broadness. Prompts should be easily adaptable.
-    - Validate JSON.
+     3. Revising
+    - Rewrite for clarity
+    - Paraphrase or shorten text 
+    - Refine argument or conclusion
+
+     4. Editing
+    - Check grammar and spelling  
+    - Proofread for errors
+    - Final review
 
     EXAMPLES
     [
@@ -112,11 +111,11 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
         "recommendation": "Explain quarterly sales trends referencing Q2 and Q1 data, focusing on the main factors that affected sales."
         },
         {
-            "task": "Explain/Clarify Concepts",
-            "context": "The answer mentioned inconsistent color coding and navigation issues.",
-            "title": "Clarify usability principles involved",
-            "output": "a short paragraph (100 words)",
-            "recommendation": "Explain which usability heuristics (e.g., consistency, feedback, efficiency) are most relevant to improving the dashboard's color scheme and navigation."
+            "task": "Generate Creative Writing Ideas",
+            "context": "The original discussion focused on inconsistent color coding and confusing navigation in a dashboard.",
+            "title": "Story inspired by confusion and clarity",
+            "output": "a short creative writing idea",
+            "recommendation": "Write a story or scene where a character struggles to navigate a confusing world—physical or digital—until they discover a new way to bring clarity and order. Use the theme of 'color and direction' as a metaphor for understanding."
         },
         {
         "task": "Refining / Revision",
@@ -127,9 +126,7 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
         },
     ]
 
-    VALIDATION
-    - Output only valid JSON object with "results".
-    - Each item must have: task, output, recommendation. Context is preferred.
+
     """
 
     # augment prompt with inputs
@@ -152,7 +149,11 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
         input=[
             {"role": "user", "content": prompt},
         ],
+        reasoning= {
+            "effort": "low",  
+        },
         store=False,
+        service_tier="priority",
     )
 
     raw = resp.output_text

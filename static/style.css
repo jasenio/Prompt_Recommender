@@ -88,7 +88,7 @@ button {
   cursor: pointer;
   font-size: 15px;
 }
-button:hover { background: #005fcc; }
+button:hover { background: #dee1e4; }
 
 /* message inputs */
 .message { margin-bottom: 15px; line-height: 1.5; }
