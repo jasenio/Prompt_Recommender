@@ -175,7 +175,7 @@ def home():
 
      # validation rules
     valid_groups = {"A", "B", "C", "D"}
-    valid_tasks = {"1", "2"}
+    valid_tasks = {"1", "2", "3", "4"}
 
     # check missing or invalid params
     if not pid:

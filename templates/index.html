@@ -82,8 +82,12 @@
     const TASK  = urlParams.get("task")  || "unknown_task";
 
     function detRecs(group, task) {
-      if ((group === "A" || group === "C") && task === "1") return true;
-      if ((group === "B" || group === "D") && task === "2") return true;
+      if ((group === "A" || group =="C") && (task === "1" || task === "3")) {
+        return true;
+      }
+      if((group === "B" || group === "D") && (task === "2" || task === "4")){
+        return true;
+      }
       return false;
     }
 
