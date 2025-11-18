@@ -27,7 +27,7 @@ def get_completion(prompt, prev_id):
         "input": prompt,
         "store": True,
         "reasoning": {
-            "effort": "low",  
+            "effort": "none",  
         },
         "service_tier": "priority",
     }
@@ -150,7 +150,7 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
             {"role": "user", "content": prompt},
         ],
         reasoning= {
-            "effort": "low",  
+            "effort": "none",  
         },
         store=False,
         service_tier="priority",
@@ -175,7 +175,7 @@ def home():
 
      # validation rules
     valid_groups = {"A", "B", "C", "D"}
-    valid_tasks = {"1", "2"}
+    valid_tasks = {"1", "2", "3", "4"}
 
     # check missing or invalid params
     if not pid:
