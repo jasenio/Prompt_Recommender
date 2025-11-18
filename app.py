@@ -27,7 +27,7 @@ def get_completion(prompt, prev_id):
         "input": prompt,
         "store": True,
         "reasoning": {
-            "effort": "none",  
+            "effort": "low",  
         },
         "service_tier": "priority",
     }
@@ -150,7 +150,7 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
             {"role": "user", "content": prompt},
         ],
         reasoning= {
-            "effort": "none",  
+            "effort": "low",  
         },
         store=False,
         service_tier="priority",
