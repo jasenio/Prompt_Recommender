@@ -63,8 +63,16 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
 
     ROLE
     - Read (1) the writers's original prompt and (2) YOUR LAST ANSWER to that prompt.
-    - Propose K actionable, concise FOLLOW-UP prompts clarifying or expanding on the current topic (not just next steps; focus ~50% on current material, ~50% on advancing ideas).
-    - Prompts should be concise and flexible so the writer can easily edit them. (for example, using brackets [] with examples of what to fill in).
+    - Propose K actionable, concise FOLLOW-UP prompts clarifying or expanding on the broader theme of the original prompt and answer.
+
+    - Include questions or clarifications for cases where the user didn't understand the prior answer.
+    - Consider follow-ups where the writer disliked the answer and would like a different approach (minimal or maximal).
+    - Consider follow-ups where the writer liked the answer and would like to expand further.
+
+    - Prompts should be concise and flexible so the writer can easily edit them. (for example, instead of being too specific, using brackets [] with examples of what the user could fill in).
+    - Prompts should be very basic and direct so the writer can quickly understand and use them. (1-2 sentences max).
+    - Prompts should be written from the perspective of the writer (e.g. ("Write for me" or "Explain to me"))
+
     - DO NOT write answers—only follow-up prompts.
 
     OUTPUT FORMAT (JSON ONLY)
@@ -72,11 +80,12 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
     {
     "results": [
         {
-        "task": "<category label>",
+        "task": "<the specific task to perform>",
+        "category": "<category label>",
         "context": "<context pulled from the prior answer>",
         "title": "<task + context as a short title>",
         "output": "<what the student wants to receive>",
-        "recommendation": "<the full, student-ready follow-up prompt combining task + context + output>"
+        "recommendation": "<the full, student-ready follow-up prompt combining task + context + output; task should usually be in the start>"
         }
     ]
     }
@@ -84,46 +93,65 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
     ALLOWED CATEGORIES (pick the best fit):
      1. Planning
     - Brainstorm topics and ideas  
-    - Search literature  
+    - Identify main points
     - Create outline
 
      2. Drafting
-    - Generate Ideas
-    - Explain concepts
-    - Develop supporting points  
+    - Expand on selected ideas
+    - Draft sections or paragraphs
+    - Develop supporting points or examples
 
-     3. Revising
+    3. Explaining
+    - Break down thesis or argument
+    - Explain complex concepts in simple terms
+    - Clarify concept
+
+     4. Revising
     - Rewrite for clarity
     - Paraphrase or shorten text 
     - Refine argument or conclusion
 
-     4. Editing
+     5. Editing
     - Check grammar and spelling  
     - Proofread for errors
-    - Final review
+    - Final review / Finalize
 
     EXAMPLES
     [
         {
-        "task": "Explain quarterly trends.",
-        "context": "Reference Q2 and Q1 sales data.",
-        "output": "Focus on key factors affecting performance.",
-        "recommendation": "Explain quarterly sales trends referencing Q2 and Q1 data, focusing on the main factors that affected sales."
+            "task": "Brainstorm writing ideas",
+            "category": "Planning",
+            "context": "The original prompt was about writing a poem",
+            "title": "Brainstorm creative writing ideas for poems",
+            "output": "Short, creative writing ideas",
+            "recommendation": "Brainstorm short, creative writing ideas for poems"
         },
         {
-            "task": "Generate Creative Writing Ideas",
-            "context": "The original discussion focused on inconsistent color coding and confusing navigation in a dashboard.",
-            "title": "Story inspired by confusion and clarity",
-            "output": "a short creative writing idea",
-            "recommendation": "Write a story or scene where a character struggles to navigate a confusing world—physical or digital—until they discover a new way to bring clarity and order. Use the theme of 'color and direction' as a metaphor for understanding."
+            "task": "Revise analysis",
+            "category": "Revising",
+            "context": "The answer discussed emotional tone but not specific imagery.",
+            "title": "Revise analysis to include imagery",
+            "output": "a revised analytical paragraph",
+            "recommendation": "Revise your analysis by adding specific imagery to support your discussion of emotional tone."
         },
         {
-        "task": "Refining / Revision",
-        "context": "The answer discussed emotional tone but not specific imagery.",
-        "title": "Revise for imagery support",
-        "output": "a revised analytical paragraph",
-        "recommendation": "Revise your analysis to include two or three concrete images or phrases from the text that strengthen your claim about mood."
-        },
+            "task": "Explain thesis statement",
+            "category": "Explaining",
+            "context": "The writer has a thesis but has not clearly explained its meaning or implications.",
+            "title": "Explain thesis statement about implications",
+            "output": "A brief explanation of the thesis",
+            "recommendation": "Explain to me the thesis statement clearly, focusing on its meaning and implications. Provide a brief explanation of the thesis."
+        }
+        {
+            "task": "Explain concepts",
+            "category": "Explaining",
+            "context": "The original essay talked about World War II, including the Axis Powers.",
+            "title": "Explain who the Axis Powers were in World War II",
+            "output": "A brief explanation of the Axis Powers",
+            "recommendation": "Explain to me briefly who the Axis Powers were in World War II."
+        }
+
+
     ]
 
 
@@ -255,6 +283,6 @@ def feedback():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
-    # app.run(debug=True)
+    # port = int(os.environ.get("PORT", 5000))
+    # app.run(host='0.0.0.0', port=port)
+    app.run(debug=True)
