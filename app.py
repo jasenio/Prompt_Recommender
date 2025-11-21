@@ -151,7 +151,8 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
             "recommendation": "Explain to me briefly who the Axis Powers were in World War II."
         }
 
-
+        NOTE:
+        If the inputs are extremely short with little to no context, prompts should be extremely basic, cold start recommendations
     ]
 
 
