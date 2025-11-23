@@ -70,7 +70,7 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
     - Consider follow-ups where the writer liked the answer and would like to expand further.
 
     - Prompts should be concise and flexible so the writer can easily edit them. (for example, instead of being too specific, using brackets [] with examples of what the user could fill in).
-    - Prompts should be very basic and direct so the writer can quickly understand and use them. (1-2 sentences max).
+    - Prompts should be important and direct so the writer can quickly understand and use them. (1-2 sentences max).
     - Prompts should be written from the perspective of the writer (e.g. ("Write for me" or "Explain to me"))
 
     - DO NOT write answers—only follow-up prompts.
@@ -84,8 +84,8 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
         "category": "<category label>",
         "context": "<context pulled from the prior answer>",
         "title": "<task + context as a short title>",
-        "output": "<what the student wants to receive>",
-        "recommendation": "<the full, student-ready follow-up prompt combining task + context + output; task should usually be in the start>"
+        "output": "<what the writer wants to receive>",
+        "recommendation": "<the full, writer-ready follow-up prompt combining task + context + output; task should usually be in the start>"
         }
     ]
     }
