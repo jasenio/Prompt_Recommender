@@ -27,7 +27,7 @@ def get_completion(prompt, prev_id):
         "input": prompt,
         "store": True,
         "reasoning": {
-            "effort": "low",  
+            "effort": "none",  
         },
         "service_tier": "priority",
     }
@@ -63,17 +63,21 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
 
     ROLE
     - Read (1) the writers's original prompt and (2) YOUR LAST ANSWER to that prompt.
-    - Propose K actionable, concise FOLLOW-UP prompts clarifying or expanding on the broader theme of the original prompt and answer.
+    - Propose K actionable, concise FOLLOW-UP prompts that will help the writer.
 
     - Include questions or clarifications for cases where the user didn't understand the prior answer.
-    - Consider follow-ups where the writer disliked the answer and would like a different approach (minimal or maximal).
-    - Consider follow-ups where the writer liked the answer and would like to expand further.
+    - Consider follow-ups where the writer disliked the answer.
+    - Consider follow-ups where the writer liked the answer.
 
-    - Prompts should be concise and flexible so the writer can easily edit them. (for example, instead of being too specific, using brackets [] with examples of what the user could fill in).
+    - Prompts should be concise and flexible for the writer by using brackets of what to fill in.
+        (GOOD FLEXIBILITY EXAMPLES:   "Rewrite the text for a [ general readers / specialists . executives].", "Adjust the tone to be more [ formal / conversational / persuasive].", "Change the length to about [150-200 words / 2-3 paragraphs / few sentences].")
+        (BAD FLEXIBILITY EXAMPLES: Rewrite for middle school audience, Write longer version, Write shorter version)
+        (Use brackets sparingly because NOT ALL SUGGESTIONS NEED BRACKETS)
+        (If brackets are used, use 2/3 short options in [option 1 / option 2 / option 3] format from varying sides of spectrum)
     - Prompts should be important and direct so the writer can quickly understand and use them. (1-2 sentences max).
+    - Prompts should be relevant and generic but tailored to context
     - Prompts should be written from the perspective of the writer (e.g. ("Write for me" or "Explain to me"))
 
-    - DO NOT write answers—only follow-up prompts.
 
     OUTPUT FORMAT (JSON ONLY)
     Return valid JSON with this exact shape:
@@ -83,71 +87,53 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
         "task": "<the specific task to perform>",
         "category": "<category label>",
         "context": "<context pulled from the prior answer>",
-        "title": "<task + context as a short title>",
-        "output": "<what the writer wants to receive>",
-        "recommendation": "<the full, writer-ready follow-up prompt combining task + context + output; task should usually be in the start>"
+        "title": "<task + context as a very short title>",
+        "recommendation": "<the full prompt combining task + context + output; task should usually be in the start>"
         }
     ]
     }
 
-    ALLOWED CATEGORIES (pick the best fit):
-     1. Planning
-    - Brainstorm topics and ideas  
-    - Identify main points
-    - Create outline
+    NOTE: The K recommendations should generally be varied across different categories but depends on context
 
-     2. Drafting
-    - Expand on selected ideas
-    - Draft sections or paragraphs
-    - Develop supporting points or examples
 
-    3. Explaining
-    - Break down thesis or argument
-    - Explain complex concepts in simple terms
-    - Clarify concept
+    ALLOWED CATEGORIES (MUST CHOOSE ONE):
+    - Brainstorming and Ideation - Help generate ideas, develop concepts, explore different angles on a topic, or work through writer's block.
+    - Drafting - Write first drafts of various content: essays, stories.
+    - Editing and Revision - Refine existing writing by improving clarity, flow, tone, grammar, and structure
+    - Research and fact-checking - Search for current information to support writing, verify facts, or provide context and examples.
+    - Explanation and Summarization - Explain parts of last answer or summarize content
+    - Structure and organization - Help outline complex pieces, reorganize content for better flow, or suggest ways to structure argument or narrative.
+    - Feedback - Provide constructive critique on writing, pointing out strengths and areas for improvement.
 
-     4. Revising
-    - Rewrite for clarity
-    - Paraphrase or shorten text 
-    - Refine argument or conclusion
-
-     5. Editing
-    - Check grammar and spelling  
-    - Proofread for errors
-    - Final review / Finalize
 
     EXAMPLES
     [
         {
             "task": "Brainstorm writing ideas",
-            "category": "Planning",
+            "category": "Brainstorming and Ideation",
             "context": "The original prompt was about writing a poem",
             "title": "Brainstorm creative writing ideas for poems",
-            "output": "Short, creative writing ideas",
             "recommendation": "Brainstorm short, creative writing ideas for poems"
         },
         {
             "task": "Revise analysis",
-            "category": "Revising",
+            "category": "Editing and Revision",
             "context": "The answer discussed emotional tone but not specific imagery.",
             "title": "Revise analysis to include imagery",
-            "output": "a revised analytical paragraph",
             "recommendation": "Revise your analysis by adding specific imagery to support your discussion of emotional tone."
         },
         {
             "task": "Explain thesis statement",
-            "category": "Explaining",
+            "category": "Explanation and Summarization",
             "context": "The writer has a thesis but has not clearly explained its meaning or implications.",
             "title": "Explain thesis statement about implications",
-            "output": "A brief explanation of the thesis",
             "recommendation": "Explain to me the thesis statement clearly, focusing on its meaning and implications. Provide a brief explanation of the thesis."
         }
         {
             "task": "Explain concepts",
-            "category": "Explaining",
+            "category": "Explanation and Summarization",
             "context": "The original essay talked about World War II, including the Axis Powers.",
             "title": "Explain who the Axis Powers were in World War II",
-            "output": "A brief explanation of the Axis Powers",
             "recommendation": "Explain to me briefly who the Axis Powers were in World War II."
         }
 
@@ -179,7 +165,7 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
             {"role": "user", "content": prompt},
         ],
         reasoning= {
-            "effort": "low",  
+            "effort": "none",  
         },
         store=False,
         service_tier="priority",
@@ -190,6 +176,7 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
     # load into json and extract results
     data = json.loads(raw)
     results_list = data["results"] 
+    # print(results_list)
 
     return results_list
 
@@ -284,6 +271,6 @@ def feedback():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
-    # app.run(debug=True)
+    # port = int(os.environ.get("PORT", 5000))
+    # app.run(host='0.0.0.0', port=port)
+    app.run(debug=True)
