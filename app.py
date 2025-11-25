@@ -138,7 +138,7 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
         }
 
         NOTE:
-        If the inputs are extremely short with little to no context, prompts should be extremely basic, cold start recommendations
+        If the user's inputs are extremely short with little to no context (e.g. "Hello"), prompts should be extremely basic, cold start recommendations for writing
     ]
 
 
@@ -176,7 +176,8 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
     # load into json and extract results
     data = json.loads(raw)
     results_list = data["results"] 
-    # print(results_list)
+    print(prompt)
+    print(results_list)
 
     return results_list
 
