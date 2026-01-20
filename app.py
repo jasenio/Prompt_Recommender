@@ -9,7 +9,6 @@ import json, time
 
 # load vars
 load_dotenv()
-PG_URL = os.getenv("PG_URL")
 KEY = os.getenv("SECRET")
 ORG = os.getenv("ORG")
 PROJ = os.getenv("PROJ")
@@ -228,28 +227,7 @@ def recommend():
 # collect user behavior (use, submit)
 @app.route("/feedback", methods=["POST"])
 def feedback():
-    try:
-        data = request.get_json(force=True)
-        session_id = data.get("session_id")
-        timestamp = data.get("timestamp")
-        action = data.get("action")
-        meta = json.dumps(data.get("meta", {}))
-        server_time = time.time()
-
-        # store in postgres 
-        with psycopg.connect(PG_URL) as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO feedback (session_id, timestamp, action, meta, server_time)
-                    VALUES (%s, %s, %s, %s::jsonb, %s)
-                """, (session_id, timestamp, action, meta, server_time))
-                conn.commit()
-
-        return jsonify({"status": "ok"}), 200
-
-    except Exception as e:
-        print("Feedback insert failed:", e)
-        return jsonify({"error": str(e)}), 500
+    return jsonify({"status": "ok"}), 200 # testing only
 
 if __name__ == '__main__':
     # port = int(os.environ.get("PORT", 5000))
