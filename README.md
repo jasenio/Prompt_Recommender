@@ -1,4 +1,4 @@
-# Prompt Helper: A prompt recommendation system
+# PromptHelper: A prompt recommendation system
 
 ## About
 PromptHelper is a complementary interface for chatbot workflows. After a user submits a prompt and a chatbot responds, PromptHelper will generate follow-up prompt recommendations. A user may call upon and view these recommendations on their own command. Currently, these follow-ups are related to writing tasks.
