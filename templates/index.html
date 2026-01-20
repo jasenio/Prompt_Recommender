@@ -82,6 +82,7 @@
     const TASK  = urlParams.get("task")  || "unknown_task";
 
     function detRecs(group, task) {
+      return true; // all for testing
       if ((group === "A" || group =="C") && (task === "1" || task === "3")) {
         return true;
       }
@@ -154,8 +155,7 @@
             console.warn('Recommendations failed:', recErr);
           }
         }
-        
-
+      
       
       } catch (err) {
         responseEl.innerHTML = "<span style='color:red;'>Error fetching response.</span>";
@@ -272,7 +272,7 @@
     // fetch and render recommendations
     let LAST_QUERY = "", LAST_BOT_TEXT = "";
 
-    async function fetchRecommendations(query, bot_response, k = 20, page_token = null) {
+    async function fetchRecommendations(query, bot_response, k, page_token = null) {
       try {
         if (!page_token) {
           setRecState("loading");  

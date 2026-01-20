@@ -21,7 +21,7 @@ os.environ["OPENAI_API_KEY"] = KEY
 client = OpenAI(organization=ORG, project=PROJ)
 
 # get generic response from OpenAI API
-def get_completion(prompt, prev_id):
+def get_response(prompt, prev_id):
     request = {
         "model": MODEL,
         "input": prompt,
@@ -42,27 +42,17 @@ def get_completion(prompt, prev_id):
     new_id = resp.id
     return text, new_id
 
-# get small embedding with OpenAI API
-def embed_query(text: str):
-    resp = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=text
-    )
-    emb = np.array(resp.data[0].embedding, dtype=np.float32)
-    emb /= np.linalg.norm(emb)
-    return emb.tolist()
-
-
-# pure LLM recommendations
+# prompt LLM for recommendations
 def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
-    # recommend based on (1) user input, (2) bot repsonse to give (3) K recommendations
+    # recommend based on (1) user input, (2) bot response to give (3) K recommendations
     k = max(1, min(int(k), 20)) 
 
+    # system prompt
     sys_instructions = r"""
     You are an expert generator of FOLLOW-UP prompts for writers.
 
     ROLE
-    - Read (1) the writers's original prompt and (2) YOUR LAST ANSWER to that prompt.
+    - Read (1) the writer's original prompt and (2) YOUR LAST ANSWER to that prompt.
     - Propose K actionable, concise FOLLOW-UP prompts that will help the writer.
 
     - Include questions or clarifications for cases where the user didn't understand the prior answer.
@@ -70,14 +60,12 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
     - Consider follow-ups where the writer liked the answer.
 
     - Prompts should be concise and flexible for the writer by using brackets of what to fill in.
-        (GOOD FLEXIBILITY EXAMPLES:   "Rewrite the text for a [ general readers / specialists . executives].", "Adjust the tone to be more [ formal / conversational / persuasive].", "Change the length to about [150-200 words / 2-3 paragraphs / few sentences].")
-        (BAD FLEXIBILITY EXAMPLES: Rewrite for middle school audience, Write longer version, Write shorter version)
-        (Use brackets sparingly because NOT ALL SUGGESTIONS NEED BRACKETS)
-        (If brackets are used, use 2/3 short options in [option 1 / option 2 / option 3] format from varying sides of spectrum)
-    - Prompts should be important and direct so the writer can quickly understand and use them. (1-2 sentences max).
-    - Prompts should be relevant and generic but tailored to context
-    - Prompts should be written from the perspective of the writer (e.g. ("Write for me" or "Explain to me"))
-
+        (GOOD FLEXIBILITY EXAMPLES: "Rewrite the text for [general readers / specialists / executives].", "Adjust the tone to be more [formal / conversational / persuasive].", "Change the text length to [150-200 words / 2-3 paragraphs / a few sentences].").
+        (BAD FLEXIBILITY EXAMPLES: "Rewrite the text for a middle school audience", "Write a longer version of the text", "Write a shorter version of the text").
+        (Use brackets when appropriate, if brackets are used, use 2/3 short options in [option 1 / option 2 / option 3] format from varying sides of spectrum).
+    - Prompts should be direct and actionable so the writer can quickly understand and use them (1-2 sentences max).
+    - Prompts should be relevant and generic while tailored to context
+    - Prompts should be written from the perspective of the writer (e.g. "Write for me" or "Explain to me").
 
     OUTPUT FORMAT (JSON ONLY)
     Return valid JSON with this exact shape:
@@ -93,18 +81,16 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
     ]
     }
 
-    NOTE: The K recommendations should generally be varied across different categories but depends on context
+    NOTE: The K recommendations should be varied across different categories.
 
-
-    ALLOWED CATEGORIES (MUST CHOOSE ONE):
+    ALLOWED CATEGORIES:
     - Brainstorming and Ideation - Help generate ideas, develop concepts, explore different angles on a topic, or work through writer's block.
-    - Drafting - Write first drafts of various content: essays, stories.
+    - Drafting - Write first drafts of various content.
     - Editing and Revision - Refine existing writing by improving clarity, flow, tone, grammar, and structure
     - Research and fact-checking - Search for current information to support writing, verify facts, or provide context and examples.
-    - Explanation and Summarization - Explain parts of last answer or summarize content
+    - Explanation and Summarization - Explain parts of last answer or summarize content.
     - Structure and organization - Help outline complex pieces, reorganize content for better flow, or suggest ways to structure argument or narrative.
     - Feedback - Provide constructive critique on writing, pointing out strengths and areas for improvement.
-
 
     EXAMPLES
     [
@@ -123,13 +109,6 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
             "recommendation": "Revise your analysis by adding specific imagery to support your discussion of emotional tone."
         },
         {
-            "task": "Explain thesis statement",
-            "category": "Explanation and Summarization",
-            "context": "The writer has a thesis but has not clearly explained its meaning or implications.",
-            "title": "Explain thesis statement about implications",
-            "recommendation": "Explain to me the thesis statement clearly, focusing on its meaning and implications. Provide a brief explanation of the thesis."
-        }
-        {
             "task": "Explain concepts",
             "category": "Explanation and Summarization",
             "context": "The original essay talked about World War II, including the Axis Powers.",
@@ -140,7 +119,6 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
         NOTE:
         If the user's inputs are extremely short with little to no context (e.g. "Hello"), prompts should be extremely basic, cold start recommendations for writing
     ]
-
 
     """
 
@@ -157,7 +135,7 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
     {k}
     """
 
-    # try completion end point
+    # get a response, no storage
     resp = client.responses.create(
         model=MODEL,
         instructions = sys_instructions,
@@ -176,8 +154,8 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
     # load into json and extract results
     data = json.loads(raw)
     results_list = data["results"] 
-    print(prompt)
-    print(results_list)
+    # print(prompt)
+    # print(results_list)
 
     return results_list
 
@@ -185,6 +163,8 @@ def llm_recommendations(user_input: str, bot_response: str, k: int = 5):
 # root route
 @app.route("/")
 def home():
+    return render_template("index.html") # for testing only
+
     # check if labels are present
     pid = request.args.get("pid")
     group = request.args.get("group")
@@ -211,15 +191,15 @@ def get_bot_response():
     userText = data.get("msg", "")
     prev_id = data.get("prev_id")
 
-    text, new_id = get_completion(userText, prev_id)
+    # maintain normal conversation state with prev_id
+    text, new_id = get_response(userText, prev_id)
 
     return jsonify({
         "text": text,
         "new_id": new_id,
     })
 
-
-# get top recommendations route
+# recommendations route
 @app.route("/recommend", methods=["POST"])
 def recommend():
     try:
@@ -245,7 +225,7 @@ def recommend():
         traceback.print_exc()
         return jsonify({"error": f"/recommend failed: {str(e)}"}), 500
 
-# collect user behavior (use/like)
+# collect user behavior (use, submit)
 @app.route("/feedback", methods=["POST"])
 def feedback():
     try:
