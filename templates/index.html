@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>ChatUI</title>
+  <title>ChatUI + Prompt RS</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <!-- generic chatbot interface -->
     <div class="chat-container">
       <header>
-        <h1>WritingBot</h1>
+        <h1>Chat with GPT</h1>
       </header>
 
       <!-- message area -->
@@ -39,7 +39,7 @@
     <!-- promptRS sidebar -->
     <div class="promptrs-container" id="promptrs">
       <div class="promptrs-header">
-        <h2>Prompt Helper</h2>
+        <h2>Prompt RS</h2>
         <button aria-label="Close recommendations"
                 onclick="closeRecommendations()"
                 class="close-btn">✕</button>
@@ -82,13 +82,8 @@
     const TASK  = urlParams.get("task")  || "unknown_task";
 
     function detRecs(group, task) {
-      return true; // all for testing
-      if ((group === "A" || group =="C") && (task === "1" || task === "3")) {
-        return true;
-      }
-      if((group === "B" || group === "D") && (task === "2" || task === "4")){
-        return true;
-      }
+      if ((group === "A" || group === "C") && task === "1") return true;
+      if ((group === "B" || group === "D") && task === "2") return true;
       return false;
     }
 
@@ -148,14 +143,14 @@
 
         // recommend using bot output + original message
         if(SHOW_REC){ // ONLY SHOW FOR CERTAIN PARTICIPANTS
-            closeRecommendations();
             try {
             await fetchRecommendations(message, data.text, 10);
           } catch (recErr) {
             console.warn('Recommendations failed:', recErr);
           }
         }
-      
+        
+
       
       } catch (err) {
         responseEl.innerHTML = "<span style='color:red;'>Error fetching response.</span>";
@@ -272,7 +267,7 @@
     // fetch and render recommendations
     let LAST_QUERY = "", LAST_BOT_TEXT = "";
 
-    async function fetchRecommendations(query, bot_response, k, page_token = null) {
+    async function fetchRecommendations(query, bot_response, k = 20, page_token = null) {
       try {
         if (!page_token) {
           setRecState("loading");  
@@ -469,8 +464,7 @@
         input.value = promptText;
         autoResize(input);
         input.focus();
-
-        // sendFeedback("use", { title, promptText, similarity, index: absoluteIndex });
+        sendFeedback("use", { title, promptText, similarity, index: absoluteIndex });
         flashCard(div);
       };
 
