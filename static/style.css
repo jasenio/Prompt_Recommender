@@ -1,11 +1,15 @@
-/* config carousel vars*/
+/* ============================================
+   CONFIGURATION & CSS VARIABLES
+   ============================================ */
 :root {
-  --item-h: 88px;         /* card height*/
-  --item-gap: 10px;       /* gap between cards */
-  --visible-items: 3;     /* hightlighted items in carousel */
+  --item-h: 88px;
+  --item-gap: 10px;
+  --visible-items: 3;
 }
 
-/* base */
+/* ============================================
+   BASE STYLES
+   ============================================ */
 body {
   margin: 0;
   padding: 0;
@@ -17,6 +21,9 @@ body {
   align-items: center;
 }
 
+/* ============================================
+   LAYOUT CONTAINERS
+   ============================================ */
 .main-container {
   display: flex;
   height: 90vh;
@@ -25,19 +32,25 @@ body {
   position: relative;
 }
 
-/* generic chat containers */
 .chat-container {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   background: #fff;
   border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
   overflow: hidden;
-  position: relative; /* for chip positioning */
+  position: relative;
   transition: margin-right 0.25s ease;
 }
 
+.chat-container.with-sidebar {
+  margin-right: 370px;
+}
+
+/* ============================================
+   HEADER
+   ============================================ */
 header {
   background-color: #f5f7fa;
   color: #333;
@@ -47,12 +60,16 @@ header {
   text-align: left;
   border-bottom: 1px solid #ddd;
 }
+
 header h1 {
   font-size: 1.1rem;
   margin: 0;
   color: #222;
 }
 
+/* ============================================
+   CHAT BOX
+   ============================================ */
 .chat-box {
   flex: 1;
   padding: 20px;
@@ -61,6 +78,18 @@ header h1 {
   word-wrap: break-word;
 }
 
+.chat-box::-webkit-scrollbar {
+  width: 10px;
+}
+
+.chat-box::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 5px;
+}
+
+/* ============================================
+   INPUT AREA
+   ============================================ */
 .input-area {
   display: flex;
   padding: 15px;
@@ -88,11 +117,22 @@ button {
   cursor: pointer;
   font-size: 15px;
 }
-button:hover { background: #005fcc; }
 
-/* message inputs */
-.message { margin-bottom: 15px; line-height: 1.5; }
-.user-msg { text-align: right; }
+button:hover {
+  background: #dee1e4;
+}
+
+/* ============================================
+   MESSAGES
+   ============================================ */
+.message {
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
+.user-msg {
+  text-align: right;
+}
 
 .user-msg p {
   display: inline-block;
@@ -103,16 +143,26 @@ button:hover { background: #005fcc; }
   max-width: 80%;
 }
 
-.bot-msg p {
-  display: inline-block;
-  background: #eaeaea;
-  padding: 10px 15px;
-  border-radius: 15px 15px 15px 0;
+.bot-msg {
+  margin-left: auto;
+  margin-right: auto;
   max-width: 80%;
-  color: #222;
 }
 
-/* promptRS sidebar containers */
+.bot-msg p {
+  margin: 0 0 4px 0;   /* reduce paragraph spacing */
+  line-height: 1.4;
+  
+}
+
+.bot-msg ul, .bot-msg ol {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+/* ============================================
+   PROMPTRS SIDEBAR
+   ============================================ */
 .promptrs-container {
   position: absolute;
   right: 0;
@@ -128,29 +178,30 @@ button:hover { background: #005fcc; }
   flex-direction: column;
   background: #fff;
   border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
+
 .promptrs-container.open {
   transform: translateX(0);
   opacity: 1;
   pointer-events: auto;
 }
 
-/* shift chat container when opened */
-.chat-container.with-sidebar { margin-right: 370px; }
-
-/* side header */
 .promptrs-header {
   display: flex;
   align-items: center;
-  justify-content: space-between; /* left title, right X */
+  justify-content: space-between;
   background: #f1f1f1;
   padding: 10px 15px;
   border: 1px solid #ddd;
   border-radius: 10px 10px 0 0;
   flex-shrink: 0;
 }
-.promptrs-header h2 { margin: 0; font-size: 16px; }
+
+.promptrs-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
 
 .close-btn {
   border: 0;
@@ -160,9 +211,14 @@ button:hover { background: #005fcc; }
   line-height: 1;
   color: #666;
 }
-.close-btn:hover { color: #333; }
 
-/* prompt list using carousel style */
+.close-btn:hover {
+  color: #333;
+}
+
+/* ============================================
+   PROMPT LIST
+   ============================================ */
 .prompt-list {
   position: relative;
   flex: 1;
@@ -173,14 +229,22 @@ button:hover { background: #005fcc; }
   border: 1px solid #ddd;
   border-top: 0;
   border-radius: 0 0 10px 10px;
-  scrollbar-width: none;      /* Firefox */
-  -ms-overflow-style: none;   /* IE/Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
-.prompt-list::-webkit-scrollbar { display: none; }
 
-#items { display: block; position: relative; }
+.prompt-list::-webkit-scrollbar {
+  display: none;
+}
 
-/* item cards */
+#items {
+  display: block;
+  position: relative;
+}
+
+/* ============================================
+   PROMPT ITEMS
+   ============================================ */
 .prompt-item {
   box-sizing: border-box;
   height: var(--item-h);
@@ -195,37 +259,44 @@ button:hover { background: #005fcc; }
   display: flex;
   flex-direction: column;
   justify-content: center;
-
-  /* fade and shrink when non highlighted */
   opacity: 0.15;
   transform: scale(0.9);
   pointer-events: none;
 }
 
-/* highlight center items */
 .prompt-item.center-item {
   opacity: 1;
   transform: scale(1.1);
   z-index: 2;
   background: #f0f8ff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   transition: all 0.25s ease;
 }
 
-/* items within visible band */
 .prompt-item.in-viewport {
   opacity: 1;
   transform: scale(1);
   pointer-events: auto;
 }
+
 .prompt-item.in-viewport:hover {
   background: #f0f8ff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transform: scale(1.02);
 }
-.prompt-item.in-viewport:active { transform: scale(0.98); }
-.prompt-item.in-viewport:focus-visible { box-shadow: 0 0 0 3px rgba(0,120,255,0.35); }
-.prompt-item.used { box-shadow: 0 0 0 3px rgba(42,157,74,0.35); background: #f4fff7; }
+
+.prompt-item.in-viewport:active {
+  transform: scale(0.98);
+}
+
+.prompt-item.in-viewport:focus-visible {
+  box-shadow: 0 0 0 3px rgba(0, 120, 255, 0.35);
+}
+
+.prompt-item.used {
+  box-shadow: 0 0 0 3px rgba(42, 157, 74, 0.35);
+  background: #f4fff7;
+}
 
 .prompt-item h3 {
   font-size: 15px;
@@ -240,7 +311,12 @@ button:hover { background: #005fcc; }
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.prompt-item h3 .sim { margin-left: 6px; font-weight: 400; color: #666; }
+
+.prompt-item h3 .sim {
+  margin-left: 6px;
+  font-weight: 400;
+  color: #666;
+}
 
 .prompt-item p {
   margin: 0;
@@ -252,13 +328,16 @@ button:hover { background: #005fcc; }
   text-overflow: ellipsis;
 }
 
-/* skeleton */
+/* ============================================
+   SKELETON LOADERS
+   ============================================ */
 .skeletons {
   position: absolute;
-  inset: 15px 15px auto 15px; /* top 15, right 15, bottom auto, left 15 */
+  inset: 15px 15px auto 15px;
   z-index: 2;
   pointer-events: none;
 }
+
 .skeleton-card {
   height: var(--item-h);
   border-radius: 8px;
@@ -268,51 +347,68 @@ button:hover { background: #005fcc; }
   padding: 12px;
   box-sizing: border-box;
 }
-.skel-title { width: 40%; height: 16px; background: #e5e7eb; border-radius: 4px; margin-bottom: 10px; }
-.skel-line  { width: 85%; height: 14px; background: #e5e7eb; border-radius: 4px; }
 
-.shimmer { position: relative; overflow: hidden; }
+.skel-title {
+  width: 40%;
+  height: 16px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.skel-line {
+  width: 85%;
+  height: 14px;
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
 .shimmer::after {
   content: "";
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
   animation: shimmer 1.2s infinite;
 }
-@keyframes shimmer { 100% { transform: translateX(100%); } }
 
-/* tail skeletons during load-more */
-.tail-skeletons .skeleton-card { opacity: 0.9; }
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
 
-/* sentinel for infinite scroll */
-.sentinel { height: 1px; }
+.tail-skeletons .skeleton-card {
+  opacity: 0.9;
+}
 
-/* chip for toggling recs */
+/* ============================================
+   UTILITIES
+   ============================================ */
+.sentinel {
+  height: 1px;
+}
+
 .chip {
   position: absolute;
   right: 16px;
-  bottom: 84px; /* fallback; updated via JS to footerHeight + 12px */
+  bottom: 84px;
   padding: 8px 12px;
   border-radius: 999px;
   font-size: 13px;
   background: #f1f5ff;
   color: #0a64ff;
   border: 1px solid #cddaff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
+
 .chip:disabled {
   opacity: 0.6;
   cursor: default;
-  pointer-events: none; /* disable clicks */
-}
-
-/* handle scrolling*/
-.chat-box::-webkit-scrollbar,
-.prompt-list::-webkit-scrollbar { width: 10px; }
-
-.chat-box::-webkit-scrollbar-thumb,
-.prompt-list::-webkit-scrollbar-thumb {
-  background-color: #ccc;
-  border-radius: 5px;
+  pointer-events: none;
 }
