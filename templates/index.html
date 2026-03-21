@@ -173,7 +173,7 @@
 
       // send query feedback
       sendFeedback("prompt", {prompt: message});
-      console.log('LOGGED: prompt');
+      // console.log('LOGGED: prompt');
 
       try {
         const res = await fetch('/get', {
@@ -187,7 +187,7 @@
 
         // log model output
         sendFeedback("response", {response: data.text});
-        console.log('LOGGED: response');
+        // console.log('LOGGED: response');
         button.disabled = false;
 
         current_response_id = data.new_id;
@@ -355,7 +355,7 @@
           count: RECS.length,
           recommendations: RECS
         });
-        console.log('LOGGED: recommendations');
+        // console.log('LOGGED: recommendations');
 
       } catch (err) {
         console.warn("Recommendation fetch failed:", err);
@@ -520,7 +520,7 @@
           rationale = r.rationale;
           category = r.category
           sendFeedback("clicked", { title, recommendation, rationale, category });
-          console.log('LOGGED: clicked');
+          // console.log('LOGGED: clicked');
         }
         clicked = true;
         flashCard(div);
