@@ -325,7 +325,7 @@ def home():
     task = request.args.get("task")
 
      # validation rules
-    valid_groups = {"A", "B", "C", "D"}
+    valid_groups = {"1", "2", "3", "4"}
     valid_tasks = {"1", "2", "3", "4"}
 
     # check missing or invalid params
