@@ -61,10 +61,27 @@ header {
   border-bottom: 1px solid #ddd;
 }
 
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 header h1 {
   font-size: 1.1rem;
   margin: 0;
   color: #222;
+}
+
+.mode-indicator {
+  font-size: 0.8rem;
+  color: #475467;
+  background: #eef2f7;
+  border: 1px solid #d0d7e2;
+  border-radius: 999px;
+  padding: 2px 10px;
+  white-space: nowrap;
 }
 
 /* ============================================
@@ -122,6 +139,10 @@ button:hover {
   background: #dee1e4;
 }
 
+#send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 /* ============================================
    MESSAGES
    ============================================ */

@@ -13,7 +13,10 @@
     <!-- generic chatbot interface -->
     <div class="chat-container">
       <header>
-        <h1>WritingBot</h1>
+        <div class="header-row">
+          <h1>WritingBot</h1>
+          <span id="mode-indicator" class="mode-indicator">Mode: Unknown</span>
+        </div>
       </header>
 
       <!-- message area -->
@@ -25,7 +28,7 @@
           oninput="autoResize(this)"
           onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage();}">
         </textarea>
-        <button onclick="sendMessage()">Send</button>
+        <button id = "send-btn" onclick="sendMessage()">Send</button>
       </footer>
 
       <!-- recommendations toggle -->
@@ -89,18 +92,40 @@
     const GROUP = urlParams.get("group") || "unknown_group";
     const TASK  = urlParams.get("task")  || "unknown_task";
 
-    function detRecs(group, task) {
-      return false; // all for testing
-      if ((group === "A" || group =="C") && (task === "1" || task === "3")) {
-        return true;
-      }
-      if((group === "B" || group === "D") && (task === "2" || task === "4")){
-        return true;
-      }
-      return false;
+    // get system mod
+    // 0 == NO RECOMMENDATIONS (control)
+    // 1 == GUIDELINE-BASED RECOMMENDATIONS 
+    // 2 == DEFAULT RECOMMENDATIONS
+    // 3 == CREATIVE RECOMMENDATIONS
+    function getMode(group, task) {
+      // return true; // all for testing
+
+      const groupNum = parseInt(group, 10);
+      const taskNum = parseInt(task, 10);
+      if (Number.isNaN(groupNum) || Number.isNaN(taskNum)) return 0;
+
+      let mode = groupNum - 1 + taskNum - 1;
+      mode = mode % 4;
+      // ex: group 1: (1, 1) = 0 ==> system 0
+
+      return mode;
     }
 
-    const SHOW_REC = detRecs(GROUP, TASK);
+    const SYS_MODE = getMode(GROUP, TASK);
+
+    function getModeLabel(mode) {
+      if (mode === 0) return "0";
+      if (mode === 1) return "1";
+      if (mode === 2) return "2";
+      if (mode === 3) return "3";
+      return "Unknown";
+    }
+
+    function renderModeIndicator() {
+      const modeEl = document.getElementById("mode-indicator");
+      if (!modeEl) return;
+      modeEl.textContent = `Mode: ${getModeLabel(SYS_MODE)}`;
+    }
 
     // send feedback to pgsql
     async function sendFeedback(action, meta) {
@@ -130,8 +155,11 @@
     // send message = (1) generic chatbot + (2) fetch recommendations
     async function sendMessage() {
       const input = document.getElementById("user-input");
+      const button = document.getElementById("send-btn"); 
       const message = input.value.trim();
       if (!message) return;
+
+      button.disabled = true; // prevent multiple submits
 
       appendMessage("You", message);
 
@@ -143,6 +171,10 @@
       appendMessage("Bot", "<em>Thinking...</em>");
       const responseEl = document.querySelector(".bot-msg:last-child p");
 
+      // send query feedback
+      sendFeedback("prompt", {prompt: message});
+      console.log('LOGGED: prompt');
+
       try {
         const res = await fetch('/get', {
           method: 'POST',
@@ -152,25 +184,33 @@
         const data = await res.json();
 
         responseEl.innerHTML = marked.parse(data.text);
+
+        // log model output
+        sendFeedback("response", {response: data.text});
+        console.log('LOGGED: response');
+        button.disabled = false;
+
         current_response_id = data.new_id;
 
         // recommend using bot output + original message
-        if(SHOW_REC){ // ONLY SHOW FOR CERTAIN PARTICIPANTS
+        if(SYS_MODE > 0){ // ONLY SHOW FOR CERTAIN PARTICIPANTS
             closeRecommendations();
             try {
-            await fetchRecommendations(message, data.text, 10);
+            await fetchRecommendations(message, data.text, 3, SYS_MODE);
           } catch (recErr) {
-            console.warn('Recommendations failed:', recErr);
+            console.warn('Recommendations failed:', recErr)
           }
         }
       
       
       } catch (err) {
         responseEl.innerHTML = "<span style='color:red;'>Error fetching response.</span>";
+        
+      } finally{
+        button.disabled = false;
       }
 
-      // send [submit] feedback
-      sendFeedback("submit", {prompt: message});
+      
     }
 
     function appendMessage(sender, text) {
@@ -280,57 +320,53 @@
     // fetch and render recommendations
     let LAST_QUERY = "", LAST_BOT_TEXT = "";
 
-    async function fetchRecommendations(query, bot_response, k, page_token = null) {
+    async function fetchRecommendations(query, bot_response, k, mode=0) {
       try {
-        if (!page_token) {
-          setRecState("loading");  
-        } else {
-          IS_LOADING_MORE = true;
-          if (tailSkelEl) { tailSkelEl.style.display = "block"; renderSkeletons(tailSkelEl, 3); }
-        }
+        setRecState("loading");
 
         const res = await fetch("/recommend", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_input: query, bot_response, k, page_token })
+          body: JSON.stringify({
+            user_input: query,
+            bot_response,
+            k,
+            mode
+          })
         });
 
-        if (!res.ok) throw new Error("Server returned " + res.status);
+        if (!res.ok) {
+          throw new Error("Server returned " + res.status);
+        }
 
         const payload = await res.json();
         const results = payload.results || [];
-        NEXT_TOKEN = payload.next_page_token || null;
 
-        if (!page_token) {
-          RECS = results.length ? results : getDummyPrompts();
-          LAST_QUERY = query || LAST_QUERY;
-          LAST_BOT_TEXT = bot_response || LAST_BOT_TEXT;
-          setRecState("loaded");
-          listEl.scrollTop = 0;
-          renderAllItems();
-          updateHighlightedItems();
-        } else {
-          RECS = RECS.concat(results);
-          IS_LOADING_MORE = false;
-          if (tailSkelEl) { tailSkelEl.style.display = "none"; tailSkelEl.innerHTML = ""; }
-          renderAllItems();
-          updateHighlightedItems();
-        }
+        RECS = results.length ? results : getDummyPrompts();
+
+        setRecState("loaded");
+        listEl.scrollTop = 0;
+        renderAllItems();
+        updateHighlightedItems();
+
+        // log recommendations
+        // console.log("Fetched recommendations:", RECS);
+        sendFeedback("recommendations", {
+          count: RECS.length,
+          recommendations: RECS
+        });
+        console.log('LOGGED: recommendations');
 
       } catch (err) {
         console.warn("Recommendation fetch failed:", err);
-        if (!page_token) {
-          RECS = getDummyPrompts();
-          setRecState("loaded");
-          renderAllItems();
-          updateHighlightedItems();
-        } else {
-          IS_LOADING_MORE = false;
-          if (tailSkelEl) { tailSkelEl.style.display = "none"; tailSkelEl.innerHTML = ""; }
-        }
+
+        RECS = getDummyPrompts();
+        setRecState("loaded");
+        listEl.scrollTop = 0;
+        renderAllItems();
+        updateHighlightedItems();
       }
     }
-
     // render all items with clones for infinite scroll
     function renderAllItems() {
       if (!itemsEl) return;
@@ -453,12 +489,10 @@
     // render each card = (1) title + (2) prompt
     function renderCard(r, absoluteIndex) {
       const meta = r.meta || {};
-      const title = r.title || r.task || r.recommendation || meta.recommendation || meta.title || `Doc ${r.doc_id || absoluteIndex}`;
-      const promptText =
-        r.prompt || r.recommendation || meta.prompt || meta.text || (typeof meta === "string" ? meta : JSON.stringify(meta));
+      const title = r.title || "";
+      const promptText = r.prompt || r.recommendation || "";
 
-      // legacy
-      const similarity = (r.similarity !== undefined) ? ` · sim: ${r.similarity}` : "";
+      // console.log("Recommendation object:", r);
 
       const div = document.createElement("div");
       div.classList.add("prompt-item");
@@ -467,18 +501,28 @@
       div.setAttribute("aria-label", `Use recommendation: ${title}`);
 
       div.innerHTML = `
-        <h3>${escapeHtml(title)}<small class="sim">${escapeHtml(similarity)}</small></h3>
+        <h3>${escapeHtml(title)}</h3>
         <p>${escapeHtml(shorten(promptText, 200))}</p>
       `;
 
       // track if item is inspected
+      let clicked = false;
       const useAction = () => {
         const input = document.getElementById("user-input");
         input.value = promptText;
         autoResize(input);
         input.focus();
 
-        // sendFeedback("use", { title, promptText, similarity, index: absoluteIndex });
+        // log cliicks
+        if(!clicked){
+          task = r.task;
+          recommendation = r.recommendation;
+          rationale = r.rationale;
+          category = r.category
+          sendFeedback("clicked", { title, recommendation, rationale, category });
+          console.log('LOGGED: clicked');
+        }
+        clicked = true;
         flashCard(div);
       };
 
@@ -518,24 +562,6 @@
       ];
     }
 
-    // ========= Infinite scroll (optional) =========
-    const io = new IntersectionObserver(async (entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        if (!NEXT_TOKEN || IS_LOADING_MORE) continue;
-        IS_LOADING_MORE = true;
-        if (tailSkelEl) { tailSkelEl.style.display = "block"; renderSkeletons(tailSkelEl, 3); }
-        try {
-          await fetchRecommendations(LAST_QUERY, LAST_BOT_TEXT, 20, NEXT_TOKEN);
-        } catch {
-          IS_LOADING_MORE = false;
-          if (tailSkelEl) { tailSkelEl.style.display = "none"; tailSkelEl.innerHTML = ""; }
-        }
-      }
-    }, { root: listEl, rootMargin: "200px 0px", threshold: 0 });
-
-    io.observe(sentinelEl);
-
     // misc helpers
     function shorten(text, max) {
       if (!text) return "";
@@ -567,6 +593,7 @@
       readCSSConfig();   
       setRecState("idle");
       positionChip();
+      renderModeIndicator();
     });
 
     // update css vars on window resize
@@ -577,7 +604,7 @@
 
     // handle scrolling for carousel
     listEl.addEventListener("scroll", onScrollHandler);
-  </script>
+  </script> 
 
 </body>
 </html>
