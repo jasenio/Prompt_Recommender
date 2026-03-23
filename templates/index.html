@@ -129,12 +129,14 @@
 
     // send feedback to pgsql
     async function sendFeedback(action, meta) {
+      mode = getMode(group, task)
       const payload = {
         session_id: SESSION_ID,
         timestamp: new Date().toISOString(),
         action,
         meta: {
-          // append PID, group, and task
+          // append mode, PID, group, and task
+          mode: mode,
           pid: PID,
           group: GROUP,
           task: TASK,
